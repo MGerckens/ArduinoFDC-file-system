@@ -1,0 +1,6 @@
+C:/Projects/MonitorController/build/CMakeFiles/dosfs.dir
+C:/Projects/MonitorController/build/CMakeFiles/test2.dir
+C:/Projects/MonitorController/build/CMakeFiles/test.dir
+C:/Projects/MonitorController/build/CMakeFiles/main.dir
+C:/Projects/MonitorController/build/CMakeFiles/edit_cache.dir
+C:/Projects/MonitorController/build/CMakeFiles/rebuild_cache.dir
