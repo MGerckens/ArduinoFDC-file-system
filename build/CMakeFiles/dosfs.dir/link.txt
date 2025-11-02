@@ -1,2 +1,0 @@
-C:\msys64\ucrt64\bin\ar.exe qc libdosfs.a "CMakeFiles/dosfs.dir/dosfs-1.03/dosfs.cpp.obj" "CMakeFiles/dosfs.dir/dosfs-1.03/SerialInterface.cpp.obj"
-C:\msys64\ucrt64\bin\ranlib.exe libdosfs.a
