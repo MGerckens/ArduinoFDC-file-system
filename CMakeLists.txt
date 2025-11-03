@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.31.0)
+cmake_minimum_required(VERSION 3.28.0)
 project(FloppySerial C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -26,7 +26,4 @@ add_executable(main
 
 target_link_libraries(test2 PUBLIC dosfs)
 target_link_libraries(test PUBLIC dosfs)
-
-target_link_libraries(main PUBLIC dosfs "C:\\Program Files (x86)\\WinFsp\\bin\\winfsp-x64.dll")
-target_include_directories(main PUBLIC "C:\\Program Files (x86)\\WinFsp\\inc")
 
