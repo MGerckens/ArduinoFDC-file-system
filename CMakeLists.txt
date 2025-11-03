@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 17)
 
 add_library(dosfs
-           dosfs-1.03/dosfs.cpp
+           dosfs-1.03/dosfs.c
            dosfs-1.03/dosfs.h
            dosfs-1.03/SerialInterface.cpp
            dosfs-1.03/SerialInterface.h
