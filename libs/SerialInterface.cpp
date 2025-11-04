@@ -70,7 +70,7 @@ static int sendAndGetResults(std::string_view sendBuf,
     }
 }
 
-int DFS_SerialAttach(const char *device, long baudRate, long dataSize,
+extern "C" int DFS_SerialAttach(const char *device, long baudRate, long dataSize,
                      char parityType, float nStopBits) {
     serial = std::make_unique<ceSerial>(std::string(device), baudRate, dataSize,
                                         parityType, nStopBits);
@@ -78,7 +78,7 @@ int DFS_SerialAttach(const char *device, long baudRate, long dataSize,
     return 0;
 }
 
-int DFS_SerialReadSector(uint8_t *buffer, uint32_t sector, uint32_t count) {
+extern "C" int DFS_SerialReadSector(uint8_t *buffer, uint32_t sector, uint32_t count) {
     bool success;
     std::cout << "reading sector " << sector << "\n";
     auto [head, track, sector_] = sectorToHTS(sector);
@@ -87,7 +87,7 @@ int DFS_SerialReadSector(uint8_t *buffer, uint32_t sector, uint32_t count) {
     return sendAndGetResults(command, std::span<uint8_t>(buffer, count*512));
 }
 
-int DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector, uint32_t count) {
+extern "C" int DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector, uint32_t count) {
     std::cout << "writing sector " << sector << "\n";
     auto [head, track, sector_] = sectorToHTS(sector);
     std::string command =

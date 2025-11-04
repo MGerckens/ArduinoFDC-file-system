@@ -1,6 +1,7 @@
-
-#include "dosfs-1.03/SerialInterface.h"
-#include "dosfs-1.03/dosfs.h"
+#include "libs/SerialInterface.h"
+// extern "C"{
+#include "libs/dosfs.h"
+// }
 #include <cassert>
 #include <cstdlib>
 
@@ -18,7 +19,7 @@ int main(int _argc, char *_argv[])
 
     // const char* device = _argv[1];
     // long baud = std::atol(_argv[2]);
-	const char* device = "COM9";
+	const char* device = "/dev/ttyUSB0";
 	long baud = 115200;
     
 	// Attach user-specified image file

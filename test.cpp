@@ -1,11 +1,13 @@
-#include "dosfs-1.03/SerialInterface.h"
-#include "dosfs-1.03/dosfs.h"
+#include "libs/SerialInterface.h"
+// extern "C"{
+#include "libs/dosfs.h"
+// }
 #include <cassert>
 #include <cstdlib>
 
 int main(int _argc, char *_argv[])
 {
-    auto serial = std::make_unique<ceSerial>("COM9", 115200, 8, 'n', 1);
+    auto serial = std::make_unique<ceSerial>("/dev/ttyUSB0", 115200, 8, 'n', 1);
     const char cmd[] = "r0,1,0\r\n";
     serial->Open();
     serial->Write(cmd);
