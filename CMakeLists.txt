@@ -18,6 +18,7 @@ add_library(libs
             libs/SerialInterface.h
             libs/dosfs.c
             libs/dosfs.h
+            libs/SerialWrapper.h
             libs/ceserial.h
 )
 # can't link unless dosfs is compiled as C++ instead of C, even with extern "C"
