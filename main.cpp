@@ -3,6 +3,7 @@ extern "C" {
 #include "fuse.h"
 }
 #include "FuseFunctions.h"
+#include "libs/SerialWrapper.h" // for DEFAULT_PORT
 
 static fuse_operations serialOps = {
     .getattr = serial_getattr,
@@ -33,6 +34,10 @@ static fuse_operations serialOps = {
 
 int main(int argc, char *argv[]) {
     fuse_args args = FUSE_ARGS_INIT(argc, argv);
+    if (InitDosFsSerialConnection(DEFAULT_PORT, 115200)) {
+		printf("Failed to create serial connection");
+		return -1;
+	}
 
     data.partitionStart = DFS_GetPtnStart(0, &data.scratchSector[0], 0, NULL,
                                           NULL, &data.partitionSize);

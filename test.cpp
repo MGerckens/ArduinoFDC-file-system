@@ -7,15 +7,15 @@
 #include <cstdlib>
 
 int main(int _argc, char *_argv[]) {
-    auto serial = std::make_unique<SerialWrapper>("/dev/ttyUSB0", 115200);
-    const char cmd[] = "r1,1,0\r\n";
+    auto serial = std::make_unique<SerialWrapper>(DEFAULT_PORT, 115200);
+    const char cmd[] = "r0,1,0\r\n";
     serial->writeStr(cmd);
     bool success = false;
     bool gotReadback = false;
     bool gotNextValid = false;
     char readbackBuffer[8];
     size_t readbackBufferIdx = 0;
-    do {
+    while (true) {
         char c = serial->readChar(success);
 
         if (success) {
@@ -25,7 +25,6 @@ int main(int _argc, char *_argv[]) {
             std::cout << c;
         } else {
             if (!gotReadback || (gotReadback && gotNextValid)) {
-                std::cout << " FAIL ";
                 break;
             }
         }
@@ -40,8 +39,6 @@ int main(int _argc, char *_argv[]) {
                 gotReadback = true;
             }
         }
-        usleep(1);
-
-    } while (true);
+    }
     std::cout << "\ndone\n";
 }

@@ -1,6 +1,6 @@
 #include "SerialInterface.h"
 
-std::unique_ptr<ceSerial> serial;
+std::unique_ptr<SerialWrapper> serial;
 
 static std::tuple<uint8_t, uint8_t, uint8_t> sectorToHTS(uint32_t sector) {
     uint8_t head, track;
@@ -24,9 +24,9 @@ static int sendAndGetResults(std::string_view sendBuf,
     char hexbuf[2];
     bool secondNibble = false;
 
-    serial->Write(sendBuf.data(), sendBuf.size());
+    serial->writeStr(sendBuf);
     while (true) {
-        char c = serial->ReadChar(success);
+        char c = serial->readChar(success);
         if (success) {
             if (gotReadback && !gotNextValid) {
                 gotNextValid = true;
@@ -37,6 +37,7 @@ static int sendAndGetResults(std::string_view sendBuf,
                     }
                     if(secondNibble){
                         hexbuf[1] = c;
+                        // todo: this is silly
                         sscanf(hexbuf, "%02X", &recvBuf[recvBufferIdx++]);
                         secondNibble = false;
                     }else{
@@ -70,11 +71,8 @@ static int sendAndGetResults(std::string_view sendBuf,
     }
 }
 
-extern "C" int DFS_SerialAttach(const char *device, long baudRate, long dataSize,
-                     char parityType, float nStopBits) {
-    serial = std::make_unique<ceSerial>(std::string(device), baudRate, dataSize,
-                                        parityType, nStopBits);
-    serial->Open();
+extern "C" int InitDosFsSerialConnection(const char *device, long baudRate) {
+    serial = std::make_unique<SerialWrapper>(device, baudRate);
     return 0;
 }
 

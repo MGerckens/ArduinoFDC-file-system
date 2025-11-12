@@ -17,7 +17,19 @@ extern "C" {
 // definitely needed
 int serial_mkdir(const char *path, mode_t mode) {}
 int serial_rmdir(const char *path) {}
-int serial_unlink(const char *path) {}
+int serial_unlink(const char *path) {
+    if (!data.openedEntities.contains(std::string(path))) {
+        return -ENOENT;
+    }
+    const PFILEINFO file =
+        std::get_if<FILEINFO>(&data.openedEntities[std::string(path)]);
+    if (file == nullptr) {
+        return -EISDIR;
+    }
+
+    uint32_t rc = DFS_UnlinkFile(&data.volInfo, (uint8_t*)path, &data.scratchSector[0]);
+    return -dfsErrorToErrno(rc);
+}
 int serial_read(const char *path, char *buf, size_t size, off_t offset,
                 struct fuse_file_info *fi) {
     if (!data.openedEntities.contains(std::string(path))) {
@@ -31,9 +43,12 @@ int serial_read(const char *path, char *buf, size_t size, off_t offset,
     }
 
     uint32_t bytesRead = 0;
+    DFS_Seek(file, offset, &data.scratchSector[0]);
     uint32_t rc =
         DFS_ReadFile(file, &data.scratchSector[0],
                      reinterpret_cast<uint8_t *>(buf), &bytesRead, size);
+    DFS_Seek(file, 0, &data.scratchSector[0]);
+    
     if (rc != DFS_OK && rc != DFS_EOF) {
         return -dfsErrorToErrno(rc);
     }
@@ -52,15 +67,31 @@ int serial_write(const char *path, const char *buf, size_t size, off_t offset,
     }
 
     uint32_t bytesWritten = 0;
+    DFS_Seek(file, offset, &data.scratchSector[0]);
     int rc = DFS_WriteFile(file, &data.scratchSector[0],
-                           (uint8_t *)(buf + offset), &bytesWritten, size);
+                           (uint8_t *)buf, &bytesWritten, size);
+    DFS_Seek(file, 0, &data.scratchSector[0]);
     if (rc != DFS_OK && rc != DFS_EOF) {
         return -dfsErrorToErrno(rc);
     }
     return bytesWritten;
 }
 
-int serial_mknod(const char *path, mode_t mode, dev_t dev) {}
+int serial_mknod(const char *path, mode_t mode, dev_t dev) {
+    (void)dev; // don't allow creating special files
+    if(mode != S_IFREG){
+        return -ENOSYS;
+    }
+
+    if(data.openedEntities.contains(std::string(path))) {
+        return -EEXIST;
+    }
+
+    FILEINFO createdFile{};
+    uint32_t rc = DFS_OpenFile(&data.volInfo, (uint8_t*)path, DFS_WRITE, &data.scratchSector[0], &createdFile);
+    data.openedEntities[std::string(path)] = std::move(createdFile);
+    return -dfsErrorToErrno(rc);
+}
 
 // needed but lower priority
 int serial_getattr(const char *path, struct stat *statbuf) {}
@@ -73,6 +104,8 @@ int serial_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 void *serial_init(struct fuse_conn_info *conn) {}
 void serial_destroy(void *userdata) {}
 int serial_open(const char *path, struct fuse_file_info *fi) {
+    // todo: investigate storing a ptr in fi->fh isntead of looking it up in a map
+    // alternatively, benchmark std::find on a vector or a real hash map (absl or similar) 
     UserData *pData =
         reinterpret_cast<UserData *>(fuse_get_context()->private_data);
     uint8_t mode = unixFlagsToDosMode(fi->flags);
@@ -82,20 +115,11 @@ int serial_open(const char *path, struct fuse_file_info *fi) {
     // it
     int rc = DFS_OpenFile(&pData->volInfo, (uint8_t *)path, mode,
                           &pData->scratchSector[0], &openedFile);
-    switch (rc) {
-    case DFS_OK: {
-        data.openedEntities[std::string(path)] = std::move(openedFile);
-        return 0;
+    if (rc != DFS_OK) {
+        return -dfsErrorToErrno(rc);
     }
-    case DFS_NOTFOUND:
-        return -ENOENT;
-    case DFS_WRITEPROT:
-        return -EACCES;
-    default: {
-        std::cerr << "Unhandled return code in serial_open: " << rc << "\n";
-        return -EINVAL;
-    }
-    }
+    data.openedEntities[std::string(path)] = std::move(openedFile);
+    return 0;
 }
 
 // probably not needed

@@ -12,17 +12,13 @@
 #include <algorithm>
 #include <cstddef>
 #include <cctype>
-#include "libs/ceserial.h"
+#include "libs/SerialWrapper.h"
 
 // Override media sector functions
 #define DFS_ReadSector(unit,buffer,sector,count) DFS_SerialReadSector(buffer,sector,count)
 #define DFS_WriteSector(unit,buffer,sector,count) DFS_SerialWriteSector(buffer,sector,count)
 
-/*
-	Attach emulation to a host-side disk image file
-	Returns 0 OK, nonzero for any error
-*/
-extern "C" int DFS_SerialAttach(const char* device, long baudRate, long dataSize, char parityType, float nStopBits);
+extern "C" int InitDosFsSerialConnection(const char* device, long baudRate);
 
 /*
 	Read sector from image
