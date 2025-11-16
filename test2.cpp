@@ -16,8 +16,10 @@ int main(int _argc, char *_argv[]) {
     FILEINFO fi;
     uint8_t *p;
 
-    // const char* device = _argv[1];
-    // long baud = std::atol(_argv[2]);
+    // if (_argc < 2) {
+    //     printf("Usage: %s [image_file]\n", _argv[0]);
+    //     return -1;
+    // }
 
     // Attach user-specified image file
     if (InitDosFsSerialConnection(DEFAULT_PORT, 115200)) {
@@ -64,14 +66,14 @@ int main(int _argc, char *_argv[]) {
     //------------------------------------------------------------
     // Directory enumeration test
     di.scratch = sector;
-    if (DFS_OpenDir(&vi, (uint8_t *)"", &di)) {
-        printf("Error opening root directory\n");
+    //	if (DFS_OpenDir(&vi, "", &di)) {
+    //		printf("Error opening root directory\n");
+    //		return -1;
+    //	}
+    if (DFS_OpenDir(&vi, (uint8_t *)"/folder", &di)) {
+        printf("error opening subdirectory\n");
         return -1;
     }
-    // if (DFS_OpenDir(&vi, (uint8_t*)("MYDIR1"), &di)) {
-    // 	printf("error opening subdirectory\n");
-    // 	return -1;
-    // }
     while (!DFS_GetNext(&vi, &di, &de)) {
         if (de.name[0])
             printf("file: '%-11.11s'\n", de.name);
@@ -96,7 +98,7 @@ int main(int _argc, char *_argv[]) {
 
     //------------------------------------------------------------
     // File write test
-    if (DFS_OpenFile(&vi, (uint8_t *)("MYDIR1/WRTEST.TXT"), DFS_WRITE, sector,
+    if (DFS_OpenFile(&vi, (uint8_t *)"MYDIR1/WRTEST.TXT", DFS_WRITE, sector,
                      &fi)) {
         printf("error opening file\n");
         return -1;
