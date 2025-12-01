@@ -1,5 +1,8 @@
 #include "SerialInterface.h"
 
+#include <chrono>
+#include <thread>
+
 // from here: https://stackoverflow.com/a/34365963
 struct Table {
     uint8_t tab[128];
@@ -96,87 +99,62 @@ sectorToHTS(uint32_t logicalSector) {
 static int sendReadAndGetResults(std::string_view sendBuf,
                                  std::span<uint8_t> recvBuf) {
     bool success = false;
-    bool gotReadback = false;
-    bool gotNextValid = false;
-    std::string readbackBuffer = "";
-    size_t readbackBufferIdx = 0;
+    // bool gotReadback = false;
+    bool gotOne = false;
+    // std::string readbackBuffer = "";
+    // size_t readbackBufferIdx = 0;
     size_t recvBufferIdx = 0;
 
     uint8_t currentByte = 0;
     bool secondNibble = false;
 
     success = true;
-    while (success) {
-        // discard any extra characters after the sector is done
-        // should just be one newline
-        serial->readChar(success);
+    // std::cout << "discarding before read:\n";
+    // while (success) {
+    //     // discard any extra characters after the sector is done
+    //     // should just be one newline
+    //     std::cout << serial->readChar(success);
+    // }
+    // std::cout << "reading\n";
+    if (recvBuf.size() < 512) {
+        std::cerr << "Receive buffer too small!";
+        return -1;
     }
 
-    // todo remove readbacks entirely, remove this spaghetti
+    std::chrono::time_point start = std::chrono::system_clock::now();
     serial->writeStr(sendBuf);
-    if (sendBuf[0] == 'w') {
-        return 0;
-    }
-    while (true) {
+    while (recvBufferIdx <= 512) {
         char c = serial->readChar(success);
         if (success) {
             std::cout << c;
-            if (gotReadback && !gotNextValid) {
-                gotNextValid = true;
+            if (!gotOne) {
+                gotOne = true;
             }
-            if (gotReadback) {
-                if (sendBuf[0] == 'w') {
-                    return 0;
-                }
-                if (std::isspace(c)) {
-                    continue;
-                }
-                if (recvBufferIdx >= recvBuf.size()) {
-                    std::cerr << "Received too many bytes\n";
-                    return -1;
-                }
-                if (secondNibble) {
-                    currentByte |= hextoint(c);
-                    recvBuf[recvBufferIdx++] = currentByte;
-                    currentByte = 0;
-                    secondNibble = false;
-                } else {
-                    currentByte |= (hextoint(c) << 4);
-                    secondNibble = true;
-                }
+            if (recvBufferIdx > 512) {
+                std::cerr << "Received too many bytes\n";
+                return -1;
+            }
+            if (secondNibble) {
+                currentByte |= hextoint(c);
+                recvBuf[recvBufferIdx++] = currentByte;
+                currentByte = 0;
+                secondNibble = false;
+            } else {
+                currentByte |= (hextoint(c) << 4);
+                secondNibble = true;
             }
 
         } else {
-            if (!gotReadback) {
-                std::cerr << "Failed to get readback\n";
-                return -1;
-            } else if (gotNextValid) {
-                // std::cout << (char*)recvBuf.data() << "\n\n";
-                break;
-            }
-        }
 
-        if (!gotReadback) {
-            if (readbackBufferIdx >= sendBuf.size()) {
-                std::cerr << "Readback too long\n";
+            if (std::chrono::system_clock::now() - start >
+                std::chrono::seconds(2)) {
+                std::cerr << "Receive timed out\n";
                 return -1;
             }
-            readbackBuffer.push_back(c);
-            // std::cout << "readback: " << readbackBuffer << "\n\n";
-            if (std::equal(sendBuf.begin(), sendBuf.end(),
-                           readbackBuffer.begin())) {
-                gotReadback = true;
-            }
+            // std::cout << "failed\n";
         }
     }
-
-    // std::cout << "discarding\n";
-    success = true;
-    while (success) {
-        // discard any extra characters after the sector is done
-        // should just be one newline
-        serial->readChar(success);
-    }
+    std::cout << "\n";
     return 0;
 }
 
@@ -204,13 +182,14 @@ extern "C" int DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
     static char outHexBuffer[1024];
 
     size_t outIdx = 0;
-    for (size_t inIdx; inIdx < 512; ++inIdx) {
-        outHexBuffer[outIdx++] = nibbleToHex(buffer[(inIdx & 0xF0) >> 4]);
-        outHexBuffer[outIdx++] = nibbleToHex(buffer[inIdx & 0x0F]);
+    for (size_t inIdx = 0; inIdx < 512; ++inIdx) {
+        outHexBuffer[outIdx++] = nibbleToHex((buffer[inIdx] & 0xF0) >> 4);
+        outHexBuffer[outIdx++] = nibbleToHex(buffer[inIdx] & 0x0F);
     }
 
     std::string command = std::format("w{},{},{},{}\r\n", track, sector_, head,
                                       std::string_view(outHexBuffer));
+    std::cout << "writing:\n" << command << "\n";
 
     bool success = serial->writeStr(command);
     if (!success) {
@@ -218,12 +197,22 @@ extern "C" int DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
         return -1;
     }
 
-    std::cout << "discarding\n";
-    success = true;
-    while (success) {
-        // discard any extra characters after the sector is done
-        // should just be one newline
-        serial->readChar(success);
+    // idk why this is needed
+    serial->writeStr("\r\n");
+
+    char c;
+    std::chrono::time_point start = std::chrono::system_clock::now();
+    while (true) {
+        c = serial->readChar(success);
+        if (success && c == 'z') {
+            return 0;
+        }
+        if (std::chrono::system_clock::now() - start >
+            std::chrono::seconds(5)) {
+            std::cerr << "Timed out waiting for write confirmation\n";
+            return -1;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-    return 0;
+    return -1;
 }

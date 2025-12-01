@@ -908,7 +908,7 @@ uint32_t DFS_ReadFile(PFILEINFO fileinfo, uint8_t *scratch, uint8_t *buffer, uin
 		   	if (remain >= tempreadsize) {
 				memcpy(buffer, scratch + (SECTOR_SIZE - tempreadsize), tempreadsize);
 				bytesread = tempreadsize;
-				buffer += tempreadsize;
+				// buffer += tempreadsize;
 				fileinfo->pointer += tempreadsize;
 				remain -= tempreadsize;
 			}
@@ -916,7 +916,7 @@ uint32_t DFS_ReadFile(PFILEINFO fileinfo, uint8_t *scratch, uint8_t *buffer, uin
 			else {
 				memcpy(buffer, scratch + (SECTOR_SIZE - tempreadsize), remain);
 
-				buffer += remain;
+				// buffer += remain;
 				fileinfo->pointer += remain;
 				bytesread = remain;
 				remain = 0;
@@ -934,15 +934,17 @@ uint32_t DFS_ReadFile(PFILEINFO fileinfo, uint8_t *scratch, uint8_t *buffer, uin
 			if (remain >= SECTOR_SIZE) {
 				result = DFS_ReadSector(fileinfo->volinfo->unit, buffer, sector, 1);
 				remain -= SECTOR_SIZE;
-				buffer += SECTOR_SIZE;
+				// buffer += SECTOR_SIZE;
 				fileinfo->pointer += SECTOR_SIZE;
 				bytesread = SECTOR_SIZE;
 			}
 			// Case 2B - We are only reading a partial sector
 			else {
 				result = DFS_ReadSector(fileinfo->volinfo->unit, scratch, sector, 1);
+    std::cout << "before memcpy: " << (std::uintptr_t)buffer << "\n";
 				memcpy(buffer, scratch, remain);
-				buffer += remain;
+    std::cout << "after memcpy: " << (std::uintptr_t)buffer << "\n";
+				// buffer += remain;
 				fileinfo->pointer += remain;
 				bytesread = remain;
 				remain = 0;
