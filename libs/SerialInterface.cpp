@@ -3,40 +3,46 @@
 #include <chrono>
 #include <thread>
 
-// from here: https://stackoverflow.com/a/34365963
-struct Table {
-    uint8_t tab[128];
-    constexpr Table() : tab{} {
-        tab['1'] = 1;
-        tab['2'] = 2;
-        tab['3'] = 3;
-        tab['4'] = 4;
-        tab['5'] = 5;
-        tab['6'] = 6;
-        tab['7'] = 7;
-        tab['8'] = 8;
-        tab['9'] = 9;
-        tab['a'] = 10;
-        tab['A'] = 10;
-        tab['b'] = 11;
-        tab['B'] = 11;
-        tab['c'] = 12;
-        tab['C'] = 12;
-        tab['d'] = 13;
-        tab['D'] = 13;
-        tab['e'] = 14;
-        tab['E'] = 14;
-        tab['f'] = 15;
-        tab['F'] = 15;
+static constexpr uint8_t hexToNibble(char number) {
+    switch (number) {
+    case '0':
+        return 0;
+    case '1':
+        return 1;
+    case '2':
+        return 2;
+    case '3':
+        return 3;
+    case '4':
+        return 4;
+    case '5':
+        return 5;
+    case '6':
+        return 6;
+    case '7':
+        return 7;
+    case '8':
+        return 8;
+    case '9':
+        return 9;
+    case 'A':
+        return 10;
+    case 'B':
+        return 11;
+    case 'C':
+        return 12;
+    case 'D':
+        return 13;
+    case 'E':
+        return 14;
+    case 'F':
+        return 15;
+    default:
+        return CHAR_MAX;
     }
-    constexpr uint8_t operator[](char const idx) const {
-        return tab[(size_t)idx];
-    }
-} constexpr table;
+}
 
-constexpr uint8_t hextoint(char number) { return table[(size_t)number]; }
-
-constexpr char nibbleToHex(uint8_t nibble) {
+static constexpr char nibbleToHex(uint8_t nibble) {
     switch (nibble) {
     case 0:
         return '0';
@@ -98,24 +104,11 @@ sectorToHTS(uint32_t logicalSector) {
 
 static int sendReadAndGetResults(std::string_view sendBuf,
                                  std::span<uint8_t> recvBuf) {
-    bool success = false;
-    // bool gotReadback = false;
-    bool gotOne = false;
-    // std::string readbackBuffer = "";
-    // size_t readbackBufferIdx = 0;
+    bool success = true;
     size_t recvBufferIdx = 0;
-
     uint8_t currentByte = 0;
     bool secondNibble = false;
 
-    success = true;
-    // std::cout << "discarding before read:\n";
-    // while (success) {
-    //     // discard any extra characters after the sector is done
-    //     // should just be one newline
-    //     std::cout << serial->readChar(success);
-    // }
-    // std::cout << "reading\n";
     if (recvBuf.size() < 512) {
         std::cerr << "Receive buffer too small!";
         return -1;
@@ -123,36 +116,34 @@ static int sendReadAndGetResults(std::string_view sendBuf,
 
     std::chrono::time_point start = std::chrono::system_clock::now();
     serial->writeStr(sendBuf);
-    while (recvBufferIdx <= 512) {
+    while (recvBufferIdx < 512) {
         char c = serial->readChar(success);
         if (success) {
             std::cout << c;
-            if (!gotOne) {
-                gotOne = true;
-            }
-            if (recvBufferIdx > 512) {
-                std::cerr << "Received too many bytes\n";
-                return -1;
-            }
             if (secondNibble) {
-                currentByte |= hextoint(c);
+                currentByte |= hexToNibble(c);
                 recvBuf[recvBufferIdx++] = currentByte;
                 currentByte = 0;
                 secondNibble = false;
             } else {
-                currentByte |= (hextoint(c) << 4);
+                currentByte |= (hexToNibble(c) << 4);
                 secondNibble = true;
             }
-
         } else {
-
             if (std::chrono::system_clock::now() - start >
                 std::chrono::seconds(2)) {
                 std::cerr << "Receive timed out\n";
                 return -1;
+            } else {
+                std::cerr << "Failed to read character\n";
+                return -1;
             }
-            // std::cout << "failed\n";
         }
+    }
+    while (success) {
+        // discard any extra characters after the sector is done
+        // should just be \r\n
+        serial->readChar(success);
     }
     std::cout << "\n";
     return 0;
