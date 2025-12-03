@@ -1,7 +1,15 @@
 #include "SerialInterface.h"
 
 #include <chrono>
+#include <cstddef>
+#include <exception>
+#include <format>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <string_view>
 #include <thread>
+#include <tuple>
 
 static constexpr uint8_t hexToNibble(char number) {
     switch (number) {
@@ -102,27 +110,31 @@ sectorToHTS(uint32_t logicalSector) {
     return {head, track, physicalSector};
 }
 
-static int sendReadAndGetResults(std::string_view sendBuf,
-                                 std::span<uint8_t> recvBuf) {
+extern "C" int InitDosFsSerialConnection(const char *device, long baudRate) {
+    serial = std::make_unique<SerialWrapper>(device, baudRate);
+    return 0;
+}
+
+extern "C" int DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
+                                    uint32_t count) {
+    std::cout << "reading sector " << sector << "\n";
+    auto [head, track, sector_] = sectorToHTS(sector);
+    std::string command = std::format("r{},{},{}\r\n", track, sector_, head);
+
     bool success = true;
-    size_t recvBufferIdx = 0;
+    std::size_t recvBufferIdx = 0;
     uint8_t currentByte = 0;
     bool secondNibble = false;
 
-    if (recvBuf.size() < 512) {
-        std::cerr << "Receive buffer too small!";
-        return -1;
-    }
-
     std::chrono::time_point start = std::chrono::system_clock::now();
-    serial->writeStr(sendBuf);
+    serial->writeStr(command);
     while (recvBufferIdx < 512) {
         char c = serial->readChar(success);
         if (success) {
             std::cout << c;
             if (secondNibble) {
                 currentByte |= hexToNibble(c);
-                recvBuf[recvBufferIdx++] = currentByte;
+                buffer[recvBufferIdx++] = currentByte;
                 currentByte = 0;
                 secondNibble = false;
             } else {
@@ -132,10 +144,7 @@ static int sendReadAndGetResults(std::string_view sendBuf,
         } else {
             if (std::chrono::system_clock::now() - start >
                 std::chrono::seconds(2)) {
-                std::cerr << "Receive timed out\n";
-                return -1;
-            } else {
-                std::cerr << "Failed to read character\n";
+                throw std::runtime_error("Receive timed out\n");
                 return -1;
             }
         }
@@ -149,22 +158,6 @@ static int sendReadAndGetResults(std::string_view sendBuf,
     return 0;
 }
 
-extern "C" int InitDosFsSerialConnection(const char *device, long baudRate) {
-    serial = std::make_unique<SerialWrapper>(device, baudRate);
-    return 0;
-}
-
-extern "C" int DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
-                                    uint32_t count) {
-    bool success;
-    std::cout << "reading sector " << sector << "\n";
-    auto [head, track, sector_] = sectorToHTS(sector);
-    std::string command = std::format("r{},{},{}\r\n", track, sector_, head);
-
-    return sendReadAndGetResults(command,
-                                 std::span<uint8_t>(buffer, count * 512));
-}
-
 extern "C" int DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
                                      uint32_t count) {
     std::cout << "writing sector " << sector << "\n";
@@ -172,8 +165,8 @@ extern "C" int DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
 
     static char outHexBuffer[1024];
 
-    size_t outIdx = 0;
-    for (size_t inIdx = 0; inIdx < 512; ++inIdx) {
+    std::size_t outIdx = 0;
+    for (std::size_t inIdx = 0; inIdx < 512; ++inIdx) {
         outHexBuffer[outIdx++] = nibbleToHex((buffer[inIdx] & 0xF0) >> 4);
         outHexBuffer[outIdx++] = nibbleToHex(buffer[inIdx] & 0x0F);
     }
@@ -184,7 +177,7 @@ extern "C" int DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
 
     bool success = serial->writeStr(command);
     if (!success) {
-        std::cerr << "Failed to send write command\n";
+        throw std::runtime_error("Failed to send write command\n");
         return -1;
     }
 
@@ -200,7 +193,8 @@ extern "C" int DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
         }
         if (std::chrono::system_clock::now() - start >
             std::chrono::seconds(5)) {
-            std::cerr << "Timed out waiting for write confirmation\n";
+            throw std::runtime_error(
+                "Timed out waiting for write confirmation\n");
             return -1;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));

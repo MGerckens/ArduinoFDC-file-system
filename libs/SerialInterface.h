@@ -2,18 +2,8 @@
 #define SERIALINTERFACE_H_
 
 #include "libs/SerialWrapper.h"
-#include <algorithm> // for equal
-#include <cctype>    // for isxdigit
-#include <cstddef>
+
 #include <cstdint>
-#include <cstring>
-#include <format>
-#include <iostream>
-#include <memory>
-#include <span>
-#include <string>
-#include <string_view>
-#include <tuple>
 
 // Override media sector functions
 #define DFS_ReadSector(unit, buffer, sector, count)                            \
