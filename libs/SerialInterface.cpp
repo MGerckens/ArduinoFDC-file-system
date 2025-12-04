@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <exception>
 #include <format>
-#include <iostream>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -117,7 +116,6 @@ extern "C" int InitDosFsSerialConnection(const char *device, long baudRate) {
 
 extern "C" int DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
                                     uint32_t count) {
-    std::cout << "reading sector " << sector << "\n";
     auto [head, track, sector_] = sectorToHTS(sector);
     std::string command = std::format("r{},{},{}\r\n", track, sector_, head);
 
@@ -131,7 +129,6 @@ extern "C" int DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
     while (recvBufferIdx < 512) {
         char c = serial->readChar(success);
         if (success) {
-            std::cout << c;
             if (secondNibble) {
                 currentByte |= hexToNibble(c);
                 buffer[recvBufferIdx++] = currentByte;
@@ -143,7 +140,7 @@ extern "C" int DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
             }
         } else {
             if (std::chrono::system_clock::now() - start >
-                std::chrono::seconds(2)) {
+                std::chrono::seconds(5)) {
                 throw std::runtime_error("Receive timed out\n");
                 return -1;
             }
@@ -154,13 +151,11 @@ extern "C" int DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
         // should just be \r\n
         serial->readChar(success);
     }
-    std::cout << "\n";
     return 0;
 }
 
 extern "C" int DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
                                      uint32_t count) {
-    std::cout << "writing sector " << sector << "\n";
     auto [head, track, sector_] = sectorToHTS(sector);
 
     static char outHexBuffer[1024];
@@ -173,7 +168,6 @@ extern "C" int DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
 
     std::string command = std::format("w{},{},{},{}\r\n", track, sector_, head,
                                       std::string_view(outHexBuffer));
-    std::cout << "writing:\n" << command << "\n";
 
     bool success = serial->writeStr(command);
     if (!success) {
@@ -189,7 +183,7 @@ extern "C" int DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
     while (true) {
         c = serial->readChar(success);
         if (success && c == 'z') {
-            return 0;
+            break;
         }
         if (std::chrono::system_clock::now() - start >
             std::chrono::seconds(5)) {
@@ -199,5 +193,10 @@ extern "C" int DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-    return -1;
+    while (success) {
+        // discard any extra characters after the sector is done
+        // should just be \r\n
+        serial->readChar(success);
+    }
+    return 0;
 }

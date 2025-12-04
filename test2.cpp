@@ -20,11 +20,6 @@ int main(int _argc, char *_argv[]) {
     FILEINFO fileInfo;
     uint8_t *readFileBuf;
 
-    // if (_argc < 2) {
-    //     printf("Usage: %s [image_file]\n", _argv[0]);
-    //     return -1;
-    // }
-
     // Attach user-specified image file
     if (InitDosFsSerialConnection(DEFAULT_PORT, 115200)) {
         printf("Failed to create serial connection");
@@ -104,11 +99,12 @@ int main(int _argc, char *_argv[]) {
     // TODO: uncomment this
     //------------------------------------------------------------
     // File write test
-    // if (DFS_OpenFile(&volInfo, (uint8_t *)"MYDIR1/WRTEST.TXT", DFS_WRITE,
-    //                  scratch, &fileInfo)) {
-    //     printf("error opening file\n");
-    //     return -1;
-    // }
+    if (DFS_OpenFile(&volInfo, (uint8_t *)"MYDIR1/WRTEST.TXT", DFS_WRITE,
+                     scratch, &fileInfo)) {
+        printf("error opening file\n");
+        return -1;
+    }
+    // TODO: still don't know what this is supposed to do
     // for (i = 0; i < 18; i++) {
     //     std::memset(scratch2, 128 + i, SECTOR_SIZE);
     //     DFS_WriteFile(&fileInfo, scratch, scratch2, &cache, SECTOR_SIZE / 2);
@@ -118,10 +114,9 @@ int main(int _argc, char *_argv[]) {
     //                   SECTOR_SIZE / 2);
     //     std::cout << "wrote " << cache << " bytes\n";
     // }
-    // sprintf((char *)scratch2, "test string at the end...");
-    // DFS_WriteFile(&fileInfo, scratch, scratch2, &cache,
-    //               strlen((char *)scratch2));
-    // std::cout << "wrote " << cache << " bytes\n";
+    sprintf((char *)scratch2, "test string at the end...");
+    DFS_WriteFile(&fileInfo, scratch, scratch2, &cache,
+                  strlen((char *)scratch2));
 
     //------------------------------------------------------------
     // File read test
@@ -134,9 +129,7 @@ int main(int _argc, char *_argv[]) {
     readFileBuf = (uint8_t *)malloc(fileInfo.filelen + 512);
     std::memset(readFileBuf, 0xaa, fileInfo.filelen + 512);
 
-    std::cout << "before: " << (std::uintptr_t)readFileBuf << "\n";
     DFS_ReadFile(&fileInfo, scratch, readFileBuf, &i, fileInfo.filelen);
-    std::cout << "after: " << (std::uintptr_t)readFileBuf << "\n";
     printf("read complete %d bytes (expected %d) pointer %d\n", i,
            fileInfo.filelen, fileInfo.pointer);
 
