@@ -1,6 +1,6 @@
-#include "libs/SerialWrapper.hpp"
 #include "libs/SerialInterface.hpp"
-extern "C"{
+#include "libs/SerialWrapper.hpp"
+extern "C" {
 #include "dosfs.h"
 }
 #include <cassert>
@@ -21,7 +21,6 @@ int main(int _argc, char *_argv[]) {
     FILEINFO fileInfo;
     uint8_t *readFileBuf;
 
-    // Attach user-specified image file
     InitDosFsSerialConnection(DEFAULT_PORT, 115200);
 
     // Obtain pointer to first partition on first (only) unit
@@ -102,16 +101,15 @@ int main(int _argc, char *_argv[]) {
         printf("error opening file\n");
         return -1;
     }
-    // TODO: still don't know what this is supposed to do
-    // for (i = 0; i < 18; i++) {
-    //     std::memset(scratch2, 128 + i, SECTOR_SIZE);
-    //     DFS_WriteFile(&fileInfo, scratch, scratch2, &cache, SECTOR_SIZE / 2);
-    //     std::cout << "wrote " << cache << " bytes\n";
-    //     std::memset(scratch2 + 256, 255 - i, SECTOR_SIZE / 2);
-    //     DFS_WriteFile(&fileInfo, scratch, scratch2 + 256, &cache,
-    //                   SECTOR_SIZE / 2);
-    //     std::cout << "wrote " << cache << " bytes\n";
-    // }
+    for (i = 0; i < 18; i++) {
+        std::memset(scratch2, 128 + i, SECTOR_SIZE);
+        DFS_WriteFile(&fileInfo, scratch, scratch2, &cache, SECTOR_SIZE / 2);
+        std::cout << "wrote " << cache << " bytes\n";
+        std::memset(scratch2 + 256, 255 - i, SECTOR_SIZE / 2);
+        DFS_WriteFile(&fileInfo, scratch, scratch2 + 256, &cache,
+                      SECTOR_SIZE / 2);
+        std::cout << "wrote " << cache << " bytes\n";
+    }
     sprintf((char *)scratch2, "test string at the end...");
     DFS_WriteFile(&fileInfo, scratch, scratch2, &cache,
                   strlen((char *)scratch2));

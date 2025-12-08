@@ -115,7 +115,7 @@ void InitDosFsSerialConnection(const char *device, long baudRate) {
 }
 
 extern "C" uint32_t DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
-                                    uint32_t count) {
+                                         uint32_t count) {
     auto [head, track, sector_] = sectorToHTS(sector);
     std::string command = std::format("r{},{},{}\r\n", track, sector_, head);
 
@@ -141,7 +141,9 @@ extern "C" uint32_t DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
         } else {
             if (std::chrono::system_clock::now() - start >
                 std::chrono::seconds(5)) {
-                throw std::runtime_error("Receive timed out\n");
+                throw std::runtime_error(
+                    std::format("Receive timed out after receiving {} bytes\n",
+                                recvBufferIdx));
                 return -1;
             }
         }
@@ -155,7 +157,7 @@ extern "C" uint32_t DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
 }
 
 extern "C" uint32_t DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
-                                     uint32_t count) {
+                                          uint32_t count) {
     auto [head, track, sector_] = sectorToHTS(sector);
 
     static char outHexBuffer[1024];
