@@ -1,7 +1,8 @@
-#include "libs/SerialInterface.h"
-// extern "C"{
-#include "libs/dosfs.h"
-// }
+#include "libs/SerialWrapper.hpp"
+#include "libs/SerialInterface.hpp"
+extern "C"{
+#include "dosfs.h"
+}
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
@@ -21,10 +22,7 @@ int main(int _argc, char *_argv[]) {
     uint8_t *readFileBuf;
 
     // Attach user-specified image file
-    if (InitDosFsSerialConnection(DEFAULT_PORT, 115200)) {
-        printf("Failed to create serial connection");
-        return -1;
-    }
+    InitDosFsSerialConnection(DEFAULT_PORT, 115200);
 
     // Obtain pointer to first partition on first (only) unit
     pstart = DFS_GetPtnStart(0, scratch, 0, &pactive, &ptype, &psize);

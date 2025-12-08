@@ -1,4 +1,5 @@
-#include "SerialInterface.h"
+#include "libs/SerialInterface.hpp"
+#include "libs/SerialWrapper.hpp"
 
 #include <chrono>
 #include <cstddef>
@@ -109,12 +110,11 @@ sectorToHTS(uint32_t logicalSector) {
     return {head, track, physicalSector};
 }
 
-extern "C" int InitDosFsSerialConnection(const char *device, long baudRate) {
+void InitDosFsSerialConnection(const char *device, long baudRate) {
     serial = std::make_unique<SerialWrapper>(device, baudRate);
-    return 0;
 }
 
-extern "C" int DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
+extern "C" uint32_t DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
                                     uint32_t count) {
     auto [head, track, sector_] = sectorToHTS(sector);
     std::string command = std::format("r{},{},{}\r\n", track, sector_, head);
@@ -154,7 +154,7 @@ extern "C" int DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
     return 0;
 }
 
-extern "C" int DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
+extern "C" uint32_t DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
                                      uint32_t count) {
     auto [head, track, sector_] = sectorToHTS(sector);
 

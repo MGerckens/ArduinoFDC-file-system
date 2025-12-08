@@ -79,7 +79,7 @@ class SerialWrapper {
 
 #else
 constexpr const char DEFAULT_PORT[] = "COM5";
-#include "libs/ceserial.h"
+#include "libs/ceserial.hpp"
 
 #include <cassert>
 #include <string>

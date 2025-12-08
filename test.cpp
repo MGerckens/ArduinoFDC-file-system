@@ -1,8 +1,6 @@
-#include "libs/SerialInterface.h"
-#include "libs/SerialWrapper.h"
-// extern "C"{
-#include "libs/dosfs.h"
-// }
+#include "libs/SerialInterface.hpp"
+#include "libs/SerialWrapper.hpp"
+
 #include <cassert>
 #include <cstdlib>
 

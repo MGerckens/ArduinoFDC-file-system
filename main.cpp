@@ -2,8 +2,8 @@ extern "C" {
 #define FUSE_USE_VERSION 26
 #include "fuse.h"
 }
-#include "FuseFunctions.h"
-#include "libs/SerialWrapper.h" // for DEFAULT_PORT
+#include "FuseFunctions.hpp"
+#include "libs/SerialWrapper.hpp" // for DEFAULT_PORT
 
 static fuse_operations serialOps = {
     .getattr = serial_getattr,
