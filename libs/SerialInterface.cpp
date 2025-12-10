@@ -110,7 +110,7 @@ sectorToHTS(uint32_t logicalSector) {
     return {head, track, physicalSector};
 }
 
-void InitDosFsSerialConnection(const char *device, long baudRate) {
+extern "C" void InitDosFsSerialConnection(const char *device, long baudRate) {
     serial = std::make_unique<SerialWrapper>(device, baudRate);
 }
 

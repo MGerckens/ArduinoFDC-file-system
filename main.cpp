@@ -3,6 +3,7 @@ extern "C" {
 #include "fuse.h"
 }
 #include "FuseFunctions.hpp"
+#include "libs/SerialInterface.hpp"
 #include "libs/SerialWrapper.hpp" // for DEFAULT_PORT
 
 static fuse_operations serialOps = {
@@ -33,16 +34,13 @@ static fuse_operations serialOps = {
 };
 
 int main(int argc, char *argv[]) {
-    fuse_args args = FUSE_ARGS_INIT(argc, argv);
-    if (InitDosFsSerialConnection(DEFAULT_PORT, 115200)) {
-		printf("Failed to create serial connection");
-		return -1;
-	}
+    // fuse_args args = FUSE_ARGS_INIT(argc, argv);
+    InitDosFsSerialConnection(DEFAULT_PORT, 115200);
 
-    data.partitionStart = DFS_GetPtnStart(0, &data.scratchSector[0], 0, NULL,
-                                          NULL, &data.partitionSize);
-    uint32_t rc = DFS_GetVolInfo(0, &data.scratchSector[0], data.partitionStart,
-                                 &data.volInfo);
+    data.partitionStart =
+        DFS_GetPtnStart(0, data.scratch, 0, NULL, NULL, &data.partitionSize);
+    uint32_t rc =
+        DFS_GetVolInfo(0, data.scratch, data.partitionStart, &data.volInfo);
     if (rc) {
         std::cout << "failed to get volume info\n";
         return -1;

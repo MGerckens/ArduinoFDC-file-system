@@ -3,11 +3,11 @@
 
 #include <stdint.h>
 
-void InitDosFsSerialConnection(const char *device, long baudRate);
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+void InitDosFsSerialConnection(const char *device, long baudRate);
 
 /*
 Read sector from image

@@ -84,5 +84,12 @@
         "cinttypes": "cpp",
         "chrono": "cpp",
         "forward_list": "cpp"
+    },
+    "cmake.debugConfig": {
+        "args": [
+            // "~/Projects/fusemount",
+            // "-f",
+            // "-s"
+        ]
     }
 }

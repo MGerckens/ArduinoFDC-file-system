@@ -1,21 +1,23 @@
 #ifndef HELPERS_H_
 #define HELPERS_H_
-
-#include "libs/dosfs.h"
+extern "C" {
+#include "dosfs.h"
+}
 #include <cerrno>
 #include <fcntl.h>
+#include <iostream>
 #include <memory>
 #include <unordered_map>
 #include <variant>
 
-using OpenedEntity = std::variant<FILEINFO, DIRINFO>;
-constexpr size_t MAX_NUM_OPENED_ENTITIES = 255;
+// using OpenedEntity = std::variant<FILEINFO, DIRINFO>;
+uint8_t scratchSector[SECTOR_SIZE];
 struct UserData {
-    uint8_t scratchSector[SECTOR_SIZE];
+    uint8_t *scratch = &scratchSector[0];
     uint32_t partitionStart;
     uint32_t partitionSize;
     VOLINFO volInfo;
-    std::unordered_map<std::string, OpenedEntity> openedEntities;
+    // std::unordered_map<std::string, OpenedEntity> openedEntities;
 };
 UserData data;
 

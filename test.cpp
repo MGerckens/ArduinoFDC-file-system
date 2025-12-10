@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <cstdlib>
+#include <memory>
 
 int main(int _argc, char *_argv[]) {
     auto serial = std::make_unique<SerialWrapper>(DEFAULT_PORT, 115200);
