@@ -1,10 +1,10 @@
-extern "C" {
 #define FUSE_USE_VERSION 26
+extern "C" {
 #include "fuse.h"
 }
 #include "FuseFunctions.hpp"
-#include "libs/SerialInterface.hpp"
-#include "libs/SerialWrapper.hpp" // for DEFAULT_PORT
+#include "SerialInterface.hpp"
+#include "SerialWrapper.hpp" // for DEFAULT_PORT
 
 static fuse_operations serialOps = {
     .getattr = serial_getattr,
@@ -37,10 +37,10 @@ int main(int argc, char *argv[]) {
     // fuse_args args = FUSE_ARGS_INIT(argc, argv);
     InitDosFsSerialConnection(DEFAULT_PORT, 115200);
 
-    data.partitionStart =
-        DFS_GetPtnStart(0, data.scratch, 0, NULL, NULL, &data.partitionSize);
-    uint32_t rc =
-        DFS_GetVolInfo(0, data.scratch, data.partitionStart, &data.volInfo);
+    data.partitionStart = DFS_GetPtnStart(DFS_SerialReadSector, 0, data.scratch,
+                                          0, NULL, NULL, &data.partitionSize);
+    uint32_t rc = DFS_GetVolInfo(DFS_SerialReadSector, 0, data.scratch,
+                                 data.partitionStart, &data.volInfo);
     if (rc) {
         std::cout << "failed to get volume info\n";
         return -1;

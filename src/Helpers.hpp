@@ -29,32 +29,10 @@ constexpr int unixFlagsToDosMode(int32_t flags) {
     if ((flags & O_WRONLY) || (flags & O_RDWR)) {
         returnMode |= DFS_WRITE;
     }
+    if((flags & O_DIRECTORY) && (returnMode & DFS_WRITE)){
+        returnMode |= DFS_CREATEDIR;
+    }
     return returnMode;
-}
-
-constexpr int dfsErrorToErrno(unsigned int err) {
-    switch (err) {
-    case DFS_OK:
-        return 0;
-    case DFS_EOF: {
-        std::cerr << "EOF isn't really an error\n";
-        return 0;
-    }
-    case DFS_WRITEPROT:
-        return EACCES;
-    case DFS_NOTFOUND:
-        return ENOENT;
-    case DFS_PATHLEN:
-        return ENAMETOOLONG;
-    case DFS_ALLOCNEW: {
-        std::cerr << "Idk how to handle ALLOCNEW\n";
-        return 0;
-    }
-    default: {
-        std::cerr << "Unrecognized error: " << err << "\n";
-        return 0;
-    }
-    }
 }
 
 #endif

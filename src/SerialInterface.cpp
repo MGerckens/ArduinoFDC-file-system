@@ -1,5 +1,5 @@
-#include "libs/SerialInterface.hpp"
-#include "libs/SerialWrapper.hpp"
+#include "SerialInterface.hpp"
+#include "SerialWrapper.hpp"
 
 #include <chrono>
 #include <cstddef>
@@ -114,8 +114,8 @@ extern "C" void InitDosFsSerialConnection(const char *device, long baudRate) {
     serial = std::make_unique<SerialWrapper>(device, baudRate);
 }
 
-extern "C" uint32_t DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
-                                         uint32_t count) {
+extern "C" uint32_t DFS_SerialReadSector(uint8_t _, uint8_t *buffer,
+                                         uint32_t sector, uint32_t count) {
     auto [head, track, sector_] = sectorToHTS(sector);
     std::string command = std::format("r{},{},{}\r\n", track, sector_, head);
 
@@ -144,7 +144,7 @@ extern "C" uint32_t DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
                 throw std::runtime_error(
                     std::format("Receive timed out after receiving {} bytes\n",
                                 recvBufferIdx));
-                return -1;
+                return 1;
             }
         }
     }
@@ -156,8 +156,8 @@ extern "C" uint32_t DFS_SerialReadSector(uint8_t *buffer, uint32_t sector,
     return 0;
 }
 
-extern "C" uint32_t DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
-                                          uint32_t count) {
+extern "C" uint32_t DFS_SerialWriteSector(uint8_t _, const uint8_t *buffer,
+                                          uint32_t sector, uint32_t count) {
     auto [head, track, sector_] = sectorToHTS(sector);
 
     static char outHexBuffer[1024];
@@ -174,7 +174,7 @@ extern "C" uint32_t DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
     bool success = serial->writeStr(command);
     if (!success) {
         throw std::runtime_error("Failed to send write command\n");
-        return -1;
+        return 1;
     }
 
     // idk why this is needed
@@ -191,7 +191,7 @@ extern "C" uint32_t DFS_SerialWriteSector(uint8_t *buffer, uint32_t sector,
             std::chrono::seconds(5)) {
             throw std::runtime_error(
                 "Timed out waiting for write confirmation\n");
-            return -1;
+            return 1;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }

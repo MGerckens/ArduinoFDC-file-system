@@ -2,7 +2,6 @@
 #define SERIALWRAPPER_H_
 
 #ifdef __linux__
-constexpr const char DEFAULT_PORT[] = "/dev/ttyUSB0";
 
 #include <cerrno>
 #include <cstring>
@@ -78,8 +77,8 @@ class SerialWrapper {
 };
 
 #else
-constexpr const char DEFAULT_PORT[] = "COM5";
-#include "libs/ceserial.hpp"
+
+#include "ceserial.hpp"
 
 #include <cassert>
 #include <string>

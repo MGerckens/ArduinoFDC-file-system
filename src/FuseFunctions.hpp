@@ -5,8 +5,9 @@
 extern "C" {
 #include "dosfs.h"
 }
+#include "SerialInterface.hpp"
 #include <cerrno>
-#include <fuse.h>
+#include <cstdint>
 #include <iostream>
 #include <memory>
 #include <utility>
@@ -22,9 +23,10 @@ int serial_mkdir(const char *path, mode_t mode) {
 
     // ?
     FILEINFO temp;
-    uint32_t rc = DFS_OpenFile(&data.volInfo, (uint8_t *)path, DFS_CREATEDIR,
-                               data.scratch, &temp);
-    return -dfsErrorToErrno(rc);
+    uint32_t rc =
+        DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector, &data.volInfo,
+                     path, DFS_CREATEDIR, data.scratch, &temp);
+    return -rc;
 }
 
 int serial_rmdir(const char *path) {
@@ -34,28 +36,30 @@ int serial_rmdir(const char *path) {
 }
 
 int serial_unlink(const char *path) {
-    uint32_t rc = DFS_UnlinkFile(&data.volInfo, (uint8_t *)path, data.scratch);
-    return -dfsErrorToErrno(rc);
+    uint32_t rc = DFS_UnlinkFile(DFS_SerialReadSector, DFS_SerialWriteSector,
+                                 &data.volInfo, path, data.scratch);
+    return -rc;
 }
 
 int serial_read(const char *path, char *buf, size_t size, off_t offset,
                 struct fuse_file_info *fi) {
 
     FILEINFO file;
-    if (uint32_t rc = DFS_OpenFile(&data.volInfo, (uint8_t *)path, DFS_READ,
-                                   data.scratch, &file)) {
-        return -dfsErrorToErrno(rc);
+    if (uint32_t rc =
+            DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector,
+                         &data.volInfo, path, DFS_READ, data.scratch, &file)) {
+        return -rc;
     }
 
     uint32_t bytesRead = 0;
-    DFS_Seek(&file, offset, data.scratch);
+    DFS_Seek(DFS_SerialReadSector, &file, offset, data.scratch);
 
     if (uint32_t rc =
-            DFS_ReadFile(&file, data.scratch, reinterpret_cast<uint8_t *>(buf),
-                         &bytesRead, size);
+            DFS_ReadFile(DFS_SerialReadSector, &file, data.scratch,
+                         reinterpret_cast<uint8_t *>(buf), &bytesRead, size);
         rc != DFS_OK && rc != DFS_EOF) {
         // DFS_Seek(file, 0, data.scratch);
-        return -dfsErrorToErrno(rc);
+        return -rc;
     }
     return bytesRead;
 }
@@ -64,32 +68,35 @@ int serial_write(const char *path, const char *buf, size_t size, off_t offset,
                  struct fuse_file_info *fi) {
 
     FILEINFO file;
-    if (uint32_t rc = DFS_OpenFile(&data.volInfo, (uint8_t *)path, DFS_WRITE,
-                                   data.scratch, &file)) {
-        return -dfsErrorToErrno(rc);
+    if (uint32_t rc =
+            DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector,
+                         &data.volInfo, path, DFS_WRITE, data.scratch, &file)) {
+        return -rc;
     }
 
     uint32_t bytesWritten = 0;
-    DFS_Seek(&file, offset, data.scratch);
-    if (uint32_t rc = DFS_WriteFile(&file, data.scratch, (uint8_t *)buf,
+    DFS_Seek(DFS_SerialReadSector, &file, offset, data.scratch);
+    if (uint32_t rc = DFS_WriteFile(DFS_SerialReadSector, DFS_SerialWriteSector,
+                                    &file, data.scratch, (const uint8_t *)buf,
                                     &bytesWritten, size);
         rc != DFS_OK && rc != DFS_EOF) {
         // DFS_Seek(file, 0, data.scratch);
-        return -dfsErrorToErrno(rc);
+        return -rc;
     }
     return bytesWritten;
 }
 
 int serial_mknod(const char *path, mode_t mode, dev_t dev) {
     (void)dev; // don't allow creating special files
-    if (mode != S_IFREG) {
+    if ((mode & S_IFMT) != S_IFREG) {
         return -ENOSYS;
     }
 
     FILEINFO createdFile{};
-    uint32_t rc = DFS_OpenFile(&data.volInfo, (uint8_t *)path, DFS_WRITE,
-                               data.scratch, &createdFile);
-    return -dfsErrorToErrno(rc);
+    uint32_t rc =
+        DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector, &data.volInfo,
+                     path, DFS_CREATEFILE, data.scratch, &createdFile);
+    return -rc;
 }
 
 // needed but lower priority
@@ -122,9 +129,21 @@ int serial_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     return 0;
 }
 
-// maybe needed for dosfs reasons
 void *serial_init(struct fuse_conn_info *conn) {
-    std::cout << "init\n";
+    InitDosFsSerialConnection(DEFAULT_PORT, 115200);
+
+    data.partitionStart = DFS_GetPtnStart(DFS_SerialReadSector, 0, data.scratch,
+                                          0, NULL, NULL, &data.partitionSize);
+    int rc = DFS_GetVolInfo(DFS_SerialReadSector, 0, data.scratch,
+                            data.partitionStart, &data.volInfo);
+
+    conn->max_write = std::min<std::size_t>(UINT32_MAX, SIZE_MAX);
+    conn->async_read = 0;
+    conn->max_readahead = 0;
+    conn->max_background = 0;
+    conn->capable =
+        conn->want & ~(FUSE_CAP_ASYNC_READ | FUSE_CAP_ATOMIC_O_TRUNC);
+
     return nullptr;
 }
 
@@ -135,20 +154,12 @@ int serial_open(const char *path, struct fuse_file_info *fi) {
     // because dosfs is stateless, this can be a no op. Just opening a file and
     // doing nothing with it to check if the file exists
 
-    // UserData *pData =
-    //     reinterpret_cast<UserData *>(fuse_get_context()->private_data);
     uint8_t mode = unixFlagsToDosMode(fi->flags);
     FILEINFO openedFile{};
 
-    // cast const char* to uint8_t* feels bad, function doesn't seem to modify
-    // it
-    int rc = DFS_OpenFile(&data.volInfo, (uint8_t *)path, mode, data.scratch,
-                          &openedFile);
-    if (rc != DFS_OK) {
-        return -dfsErrorToErrno(rc);
-    }
-    // data.openedEntities[std::string(path)] = std::move(openedFile);
-    return 0;
+    int rc = DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector,
+                          &data.volInfo, path, mode, data.scratch, &openedFile);
+    return -rc;
 }
 
 // probably not needed

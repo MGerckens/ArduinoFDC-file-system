@@ -1,5 +1,5 @@
-#include "libs/SerialInterface.hpp"
-#include "libs/SerialWrapper.hpp"
+#include "SerialInterface.hpp"
+#include "SerialWrapper.hpp"
 extern "C" {
 #include "dosfs.h"
 }
@@ -24,17 +24,18 @@ int main(int _argc, char *_argv[]) {
     InitDosFsSerialConnection(DEFAULT_PORT, 115200);
 
     // Obtain pointer to first partition on first (only) unit
-    pstart = DFS_GetPtnStart(0, scratch, 0, &pactive, &ptype, &psize);
+    pstart = DFS_GetPtnStart(DFS_SerialReadSector, 0, scratch, 0, &pactive,
+                             &ptype, &psize);
     if (pstart == 0xffffffff) {
         printf("Cannot find first partition\n");
         return -1;
     }
 
-    printf("Partition 0 start sector 0x%-08.8lX active %-02.2hX type %-02.2hX "
-           "size %-08.8lX\n",
+    printf("Partition 0 start sector 0x%-8.8uX active %-2.2hX type %-2.2hX "
+           "size %-8.8uX\n",
            pstart, pactive, ptype, psize);
 
-    if (DFS_GetVolInfo(0, scratch, pstart, &volInfo)) {
+    if (DFS_GetVolInfo(DFS_SerialReadSector, 0, scratch, pstart, &volInfo)) {
         printf("Error getting volume information\n");
         return -1;
     }
@@ -67,11 +68,11 @@ int main(int _argc, char *_argv[]) {
     //		printf("Error opening root directory\n");
     //		return -1;
     //	}
-    if (DFS_OpenDir(&volInfo, (uint8_t *)"/MYDIR1", &dirInfo)) {
+    if (DFS_OpenDir(DFS_SerialReadSector, &volInfo, "/MYDIR1", &dirInfo)) {
         printf("error opening subdirectory\n");
         return -1;
     }
-    while (!DFS_GetNext(&volInfo, &dirInfo, &dirEntry)) {
+    while (!DFS_GetNext(DFS_SerialReadSector, &volInfo, &dirInfo, &dirEntry)) {
         if (dirEntry.name[0])
             printf("file: '%-11.11s'\n", dirEntry.name);
     }
@@ -96,36 +97,38 @@ int main(int _argc, char *_argv[]) {
     // TODO: uncomment this
     //------------------------------------------------------------
     // File write test
-    if (DFS_OpenFile(&volInfo, (uint8_t *)"MYDIR1/WRTEST.TXT", DFS_WRITE,
-                     scratch, &fileInfo)) {
+    if (DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector, &volInfo,
+                     "MYDIR1/WRTEST.TXT", DFS_WRITE, scratch, &fileInfo)) {
         printf("error opening file\n");
         return -1;
     }
     for (i = 0; i < 18; i++) {
         std::memset(scratch2, 128 + i, SECTOR_SIZE);
-        DFS_WriteFile(&fileInfo, scratch, scratch2, &cache, SECTOR_SIZE / 2);
+        DFS_WriteFile(DFS_SerialReadSector, DFS_SerialWriteSector, &fileInfo,
+                      scratch, scratch2, &cache, SECTOR_SIZE / 2);
         std::cout << "wrote " << cache << " bytes\n";
         std::memset(scratch2 + 256, 255 - i, SECTOR_SIZE / 2);
-        DFS_WriteFile(&fileInfo, scratch, scratch2 + 256, &cache,
-                      SECTOR_SIZE / 2);
+        DFS_WriteFile(DFS_SerialReadSector, DFS_SerialWriteSector, &fileInfo,
+                      scratch, scratch2 + 256, &cache, SECTOR_SIZE / 2);
         std::cout << "wrote " << cache << " bytes\n";
     }
     sprintf((char *)scratch2, "test string at the end...");
-    DFS_WriteFile(&fileInfo, scratch, scratch2, &cache,
-                  strlen((char *)scratch2));
+    DFS_WriteFile(DFS_SerialReadSector, DFS_SerialWriteSector, &fileInfo,
+                  scratch, scratch2, &cache, strlen((char *)scratch2));
 
     //------------------------------------------------------------
     // File read test
     printf("Readback test\n");
-    if (DFS_OpenFile(&volInfo, (uint8_t *)"MYDIR1/WRTEST.TXT", DFS_READ,
-                     scratch, &fileInfo)) {
+    if (DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector, &volInfo,
+                     "MYDIR1/WRTEST.TXT", DFS_READ, scratch, &fileInfo)) {
         printf("error opening file\n");
         return -1;
     }
     readFileBuf = (uint8_t *)malloc(fileInfo.filelen + 512);
     std::memset(readFileBuf, 0xaa, fileInfo.filelen + 512);
 
-    DFS_ReadFile(&fileInfo, scratch, readFileBuf, &i, fileInfo.filelen);
+    DFS_ReadFile(DFS_SerialReadSector, &fileInfo, scratch, readFileBuf, &i,
+                 fileInfo.filelen);
     printf("read complete %d bytes (expected %d) pointer %d\n", i,
            fileInfo.filelen, fileInfo.pointer);
 
