@@ -1,20 +1,23 @@
-#ifndef FUSEFUNTIONS_H_
-#define FUSEFUNTIONS_H_
+#ifndef FUSEFUNCTIONS_H_
+#define FUSEFUNCTIONS_H_
 
 #include "Helpers.hpp"
 extern "C" {
 #include "dosfs.h"
 }
 #include "SerialInterface.hpp"
+#include <algorithm> // for min
 #include <cerrno>
+#include <cmath> // for ceil
 #include <cstdint>
 #include <iostream>
-#include <memory>
-#include <utility>
-#include <variant>
 
 extern "C" {
+
+#ifndef FUSE_USE_VERSION
 #define FUSE_USE_VERSION 26
+#endif
+
 #include "fuse.h"
 
 // definitely needed
@@ -99,9 +102,31 @@ int serial_mknod(const char *path, mode_t mode, dev_t dev) {
     return -rc;
 }
 
-// needed but lower priority
 int serial_getattr(const char *path, struct stat *statbuf) {
-    std::cout << "getattr\n";
+    FILEINFO file{};
+    uint32_t rc =
+        DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector, &data.volInfo,
+                     path, DFS_READ, data.scratch, &file);
+    if (rc) {
+        return rc;
+    }
+
+    statbuf->st_dev = 0;        // assigned by fuse
+    statbuf->st_ino = 0;        // assigned by fuse
+    statbuf->st_mode = S_IFREG; // only regular files are supported
+    statbuf->st_nlink = 0;      // FAT12 doesn't support hardlinks
+    statbuf->st_uid = 0;        // or users
+    statbuf->st_gid = 0;        // or groups
+    statbuf->st_rdev = 0;       // not a device
+    statbuf->st_size = file.filelen;
+    statbuf->st_blksize = 512;
+    statbuf->st_blocks =
+        std::ceil(statbuf->st_size /
+                  512.0); // this might be inaccurate if the file is fragmented
+    statbuf->st_atim = timespec{0, 0}; // todo: implement timestamps
+    statbuf->st_mtim = timespec{0, 0}; // todo: implement timestamps
+    statbuf->st_ctim = timespec{0, 0}; // todo: implement timestamps
+
     return 0;
 }
 
@@ -150,7 +175,6 @@ void *serial_init(struct fuse_conn_info *conn) {
 void serial_destroy(void *userdata) { std::cout << "destroy\n"; }
 
 int serial_open(const char *path, struct fuse_file_info *fi) {
-    std::cout << "open\n";
     // because dosfs is stateless, this can be a no op. Just opening a file and
     // doing nothing with it to check if the file exists
 
@@ -159,6 +183,15 @@ int serial_open(const char *path, struct fuse_file_info *fi) {
 
     int rc = DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector,
                           &data.volInfo, path, mode, data.scratch, &openedFile);
+    fi->direct_io = 1;
+    return -rc;
+}
+
+int serial_access(const char *path, int mask) {
+    FILEINFO dummyFile{};
+    int rc =
+        DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector, &data.volInfo,
+                     path, DFS_READ, data.scratch, &dummyFile);
     return -rc;
 }
 
@@ -225,9 +258,7 @@ int serial_removexattr(const char *path, const char *name) {
 //  int serial_symlink(const char *path, const char *link){}
 //  int serial_link(const char *path, const char *newpath){}
 //  int serial_readlink(const char *path, char *link, size_t size){}
-//  int serial_access(const char *path, int mask){}
 //  int serial_chmod(const char *path, mode_t mode){}
 //  int serial_chown(const char *path, uid_t uid, gid_t gid){}
-
-#endif
 }
+#endif

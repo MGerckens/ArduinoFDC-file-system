@@ -29,8 +29,12 @@ constexpr int unixFlagsToDosMode(int32_t flags) {
     if ((flags & O_WRONLY) || (flags & O_RDWR)) {
         returnMode |= DFS_WRITE;
     }
-    if((flags & O_DIRECTORY) && (returnMode & DFS_WRITE)){
-        returnMode |= DFS_CREATEDIR;
+    if (flags & O_CREAT) {
+        if (flags & O_DIRECTORY) {
+            returnMode |= DFS_CREATEDIR;
+        } else {
+            returnMode |= DFS_CREATEFILE;
+        }
     }
     return returnMode;
 }
