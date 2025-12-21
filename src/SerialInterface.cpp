@@ -110,12 +110,12 @@ sectorToHTS(uint32_t logicalSector) {
     return {head, track, physicalSector};
 }
 
-extern "C" void InitDosFsSerialConnection(const char *device, long baudRate) {
+extern "C" void initSerialConnection(const char *device, long baudRate) {
     serial = std::make_unique<SerialWrapper>(device, baudRate);
 }
 
-extern "C" uint32_t DFS_SerialReadSector(uint8_t _, uint8_t *buffer,
-                                         uint32_t sector, uint32_t count) {
+extern "C" uint32_t serialReadSector(uint8_t _, uint8_t *buffer,
+                                     uint32_t sector, uint32_t count) {
     auto [head, track, sector_] = sectorToHTS(sector);
     std::string command = std::format("r{},{},{}\r\n", track, sector_, head);
 
@@ -156,8 +156,8 @@ extern "C" uint32_t DFS_SerialReadSector(uint8_t _, uint8_t *buffer,
     return 0;
 }
 
-extern "C" uint32_t DFS_SerialWriteSector(uint8_t _, const uint8_t *buffer,
-                                          uint32_t sector, uint32_t count) {
+extern "C" uint32_t serialWriteSector(uint8_t _, const uint8_t *buffer,
+                                      uint32_t sector, uint32_t count) {
     auto [head, track, sector_] = sectorToHTS(sector);
 
     static char outHexBuffer[1024];

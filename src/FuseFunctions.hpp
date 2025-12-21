@@ -25,28 +25,26 @@ extern "C" {
 // definitely needed
 int serial_mkdir(const char *path, mode_t mode) {
     FILEINFO temp;
-    return -DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector,
-                         &data.volInfo, path, DFS_CREATEDIR, data.scratch,
-                         &temp);
+    return -DFS_OpenFile(serialReadSector, serialWriteSector, &data.volInfo,
+                         path, DFS_CREATEDIR, data.scratch, &temp);
 }
 
 int serial_unlink(const char *path) {
-    return -DFS_UnlinkFile(DFS_SerialReadSector, DFS_SerialWriteSector,
-                           &data.volInfo, path, data.scratch);
+    return -DFS_UnlinkFile(serialReadSector, serialWriteSector, &data.volInfo,
+                           path, data.scratch);
 }
 
 int serial_rmdir(const char *path) {
     // check that dir is empty
     DIRINFO dir{};
     dir.scratch = data.scratch;
-    uint32_t rc = DFS_OpenDir(DFS_SerialReadSector, &data.volInfo, path, &dir);
+    uint32_t rc = DFS_OpenDir(serialReadSector, &data.volInfo, path, &dir);
     if (rc) {
         return -rc;
     }
     DIRENT entry{};
-    while (
-        (rc = DFS_GetNext(DFS_SerialReadSector, &data.volInfo, &dir, &entry)),
-        (rc == DFS_OK)) {
+    while ((rc = DFS_GetNext(serialReadSector, &data.volInfo, &dir, &entry)),
+           (rc == DFS_OK)) {
         if (entry.name[0] != 0 && std::strncmp(entry.name, ".          ", 11) &&
             std::strncmp(entry.name, "..         ", 11)) {
             return -ENOTEMPTY;
@@ -67,16 +65,16 @@ int serial_read(const char *path, char *buf, size_t size, off_t offset,
 
     FILEINFO file;
     if (uint32_t rc =
-            DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector,
-                         &data.volInfo, path, DFS_READ, data.scratch, &file)) {
+            DFS_OpenFile(serialReadSector, serialWriteSector, &data.volInfo,
+                         path, DFS_READ, data.scratch, &file)) {
         return -rc;
     }
 
     uint32_t bytesRead = 0;
-    DFS_Seek(DFS_SerialReadSector, &file, offset, data.scratch);
+    DFS_Seek(serialReadSector, &file, offset, data.scratch);
 
     if (uint32_t rc =
-            DFS_ReadFile(DFS_SerialReadSector, &file, data.scratch,
+            DFS_ReadFile(serialReadSector, &file, data.scratch,
                          reinterpret_cast<uint8_t *>(buf), &bytesRead, size);
         rc != DFS_OK && rc != DFS_EOF) {
         // DFS_Seek(file, 0, data.scratch);
@@ -90,15 +88,15 @@ int serial_write(const char *path, const char *buf, size_t size, off_t offset,
 
     FILEINFO file;
     if (uint32_t rc =
-            DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector,
-                         &data.volInfo, path, DFS_WRITE, data.scratch, &file)) {
+            DFS_OpenFile(serialReadSector, serialWriteSector, &data.volInfo,
+                         path, DFS_WRITE, data.scratch, &file)) {
         return -rc;
     }
 
     uint32_t bytesWritten = 0;
-    DFS_Seek(DFS_SerialReadSector, &file, offset, data.scratch);
-    if (uint32_t rc = DFS_WriteFile(DFS_SerialReadSector, DFS_SerialWriteSector,
-                                    &file, data.scratch, (const uint8_t *)buf,
+    DFS_Seek(serialReadSector, &file, offset, data.scratch);
+    if (uint32_t rc = DFS_WriteFile(serialReadSector, serialWriteSector, &file,
+                                    data.scratch, (const uint8_t *)buf,
                                     &bytesWritten, size);
         rc != DFS_OK && rc != DFS_EOF) {
         // DFS_Seek(file, 0, data.scratch);
@@ -114,16 +112,15 @@ int serial_mknod(const char *path, mode_t mode, dev_t dev) {
     }
 
     FILEINFO createdFile{};
-    return -DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector,
-                         &data.volInfo, path, DFS_CREATEFILE, data.scratch,
-                         &createdFile);
+    return -DFS_OpenFile(serialReadSector, serialWriteSector, &data.volInfo,
+                         path, DFS_CREATEFILE, data.scratch, &createdFile);
 }
 
 int serial_getattr(const char *path, struct stat *statbuf) {
     FILEINFO file{};
     uint32_t rc =
-        DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector, &data.volInfo,
-                     path, DFS_READ, data.scratch, &file);
+        DFS_OpenFile(serialReadSector, serialWriteSector, &data.volInfo, path,
+                     DFS_READ, data.scratch, &file);
     if (rc) {
         return -rc;
     }
@@ -169,7 +166,7 @@ int serial_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                    off_t offset, struct fuse_file_info *fi) {
     DIRINFO dir{};
     dir.scratch = data.scratch;
-    uint32_t rc = DFS_OpenDir(DFS_SerialReadSector, &data.volInfo, path, &dir);
+    uint32_t rc = DFS_OpenDir(serialReadSector, &data.volInfo, path, &dir);
     if (rc) {
         return -rc;
     }
@@ -178,17 +175,18 @@ int serial_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     DIRENT entry{};
     // skip to desired offset
     for (i = 0; i < offset; ++i) {
-        if (DFS_GetNext(DFS_SerialReadSector, &data.volInfo, &dir, &entry)) {
+        if (DFS_GetNext(serialReadSector, &data.volInfo, &dir, &entry)) {
             return 0;
         }
     }
-    while (
-        (rc = DFS_GetNext(DFS_SerialReadSector, &data.volInfo, &dir, &entry)),
-        (rc == DFS_OK && entry.name[0] != 0)) {
+    while ((rc = DFS_GetNext(serialReadSector, &data.volInfo, &dir, &entry)),
+           (rc == DFS_OK && entry.name[0] != 0)) {
         // struct stat attributes;
         char nullTerminatedName[12];
         std::memcpy(nullTerminatedName, entry.name, 11);
         nullTerminatedName[11] = '\0';
+        // not totally sure if the formatting of the file name matters,
+        // here it will be "NAME    TXT" instead of "NAME.TXT"
         if (filler(buf, nullTerminatedName, NULL, offset + 1)) {
             return 0;
         }
@@ -202,11 +200,11 @@ int serial_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 }
 
 void *serial_init(struct fuse_conn_info *conn) {
-    InitDosFsSerialConnection(DEFAULT_PORT, 115200);
+    initSerialConnection(DEFAULT_PORT, 115200);
 
-    data.partitionStart = DFS_GetPtnStart(DFS_SerialReadSector, 0, data.scratch,
-                                          0, NULL, NULL, &data.partitionSize);
-    uint32_t rc = DFS_GetVolInfo(DFS_SerialReadSector, 0, data.scratch,
+    data.partitionStart = DFS_GetPtnStart(serialReadSector, 0, data.scratch, 0,
+                                          NULL, NULL, &data.partitionSize);
+    uint32_t rc = DFS_GetVolInfo(serialReadSector, 0, data.scratch,
                                  data.partitionStart, &data.volInfo);
 
     conn->max_write = std::min<std::size_t>(UINT32_MAX, SIZE_MAX);
@@ -228,8 +226,8 @@ int serial_open(const char *path, struct fuse_file_info *fi) {
     FILEINFO openedFile{};
 
     uint32_t rc =
-        DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector, &data.volInfo,
-                     path, mode, data.scratch, &openedFile);
+        DFS_OpenFile(serialReadSector, serialWriteSector, &data.volInfo, path,
+                     mode, data.scratch, &openedFile);
     fi->direct_io = 1;
     return -rc;
 }
@@ -237,9 +235,8 @@ int serial_open(const char *path, struct fuse_file_info *fi) {
 int serial_access(const char *path, int mask) {
     FILEINFO dummyFile{};
 
-    return -DFS_OpenFile(DFS_SerialReadSector, DFS_SerialWriteSector,
-                         &data.volInfo, path, DFS_READ, data.scratch,
-                         &dummyFile);
+    return -DFS_OpenFile(serialReadSector, serialWriteSector, &data.volInfo,
+                         path, DFS_READ, data.scratch, &dummyFile);
 }
 
 int serial_truncate(const char *path, off_t newsize) {
