@@ -27,5 +27,6 @@ set_target_properties(DosFS PROPERTIES LINKER_LANGUAGE CXX)
 add_subdirectory(src)
 
 if(BUILD_FLOPPY_SERIAL_TESTS)
+    include(CTest)
     add_subdirectory(test)
 endif()

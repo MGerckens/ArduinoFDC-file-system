@@ -7,8 +7,8 @@ extern "C" {
 #include <fcntl.h>
 #include <iostream>
 #include <memory>
-#include <unordered_map>
-#include <variant>
+// #include <unordered_map>
+// #include <variant>
 
 // using OpenedEntity = std::variant<FILEINFO, DIRINFO>;
 uint8_t scratchSector[SECTOR_SIZE];
