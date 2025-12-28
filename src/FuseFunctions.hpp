@@ -24,57 +24,6 @@ extern "C" {
 
 #include "fuse.h"
 
-static int renameFile(const char *oldPath, PFILEINFO oldFile,
-                      const char *newPath) {
-    // extract old file's directory entry
-    if (serialReadSector(data.volInfo.unit, data.scratch, oldFile->dirsector,
-                         1)) {
-        return EIO;
-    }
-    DIRENT oldFileDirEntry = ((PDIRENT)data.scratch)[oldFile->diroffset];
-
-    // get location of new file, creating it if it doesn't exist yet
-    FILEINFO newFile;
-    uint32_t rc =
-        DFS_OpenFile(serialReadSector, serialWriteSector, &data.volInfo,
-                     newPath, DFS_CREATEFILE, data.scratch, &newFile);
-    if (serialReadSector(data.volInfo.unit, data.scratch, oldFile->dirsector,
-                         1)) {
-        return EIO;
-    }
-
-    // write new name into old entry
-    std::memcpy(oldFileDirEntry.name,
-                ((PDIRENT)data.scratch + newFile.diroffset)->name, 11);
-    // write old entry into new dir sector
-    std::memcpy(data.scratch + (newFile.diroffset * sizeof(DIRENT)),
-                &oldFileDirEntry, sizeof(DIRENT));
-    // write new dir sector (with edited entry) back to disk
-    if (serialWriteSector(data.volInfo.unit, data.scratch, newFile.dirsector,
-                          1)) {
-        return EIO;
-    }
-
-    // need to read old dir again bc if the old and new are in the same folder,
-    // anything read previously could be outdated now
-    if (serialReadSector(data.volInfo.unit, data.scratch, oldFile->dirsector,
-                         1)) {
-        return EIO;
-    }
-    // erase old entry
-    ((PDIRENT)data.scratch)[oldFile->diroffset].name[0] = 0xe5;
-    if (serialWriteSector(data.volInfo.unit, data.scratch, oldFile->dirsector,
-                          1)) {
-        return EIO;
-    }
-    return 0;
-}
-
-static int renameDirectory(const char *oldPathStr, const char *newPathStr) {
-
-    return 0;
-}
-
 // definitely needed
 int serial_mkdir(const char *path, mode_t mode) {
     FILEINFO temp;
@@ -104,9 +53,7 @@ int serial_rmdir(const char *path) {
         }
     }
 
-    if (rc == DFS_EOF) {
-        return 0;
-    } else {
+    if (rc && rc != DFS_EOF) {
         return -rc;
     }
 
@@ -199,14 +146,79 @@ int serial_getattr(const char *path, struct stat *statbuf) {
 
 int serial_rename(const char *path, const char *newpath) {
     FILEINFO oldFile;
+    bool isDir = false;
     uint32_t rc =
         DFS_OpenFile(serialReadSector, serialWriteSector, &data.volInfo, path,
                      DFS_READ, data.scratch, &oldFile);
     if (rc == EISDIR) {
-        return renameDirectory(path, newpath);
-    } else {
-        return renameFile(path, &oldFile, newpath);
+        isDir = true;
+    } else if (rc) {
+        return -rc;
     }
+    // extract old file's directory entry
+    if (serialReadSector(data.volInfo.unit, data.scratch, oldFile.dirsector,
+                         1)) {
+        return -EIO;
+    }
+    DIRENT oldFileDirEntry = ((PDIRENT)data.scratch)[oldFile.diroffset];
+
+    // get location of new file, creating it if it doesn't exist yet
+    FILEINFO newFile;
+    rc = DFS_OpenFile(serialReadSector, serialWriteSector, &data.volInfo,
+                      newpath,
+                      (oldFileDirEntry.attr & ATTR_DIRECTORY) ? DFS_CREATEDIR
+                                                              : DFS_CREATEFILE,
+                      data.scratch, &newFile);
+
+    // can rename a directory to an existing empty directory
+    if (rc == EEXIST && isDir) {
+        DIRINFO newDir;
+        uint32_t rc =
+            DFS_OpenDir(serialReadSector, &data.volInfo, newpath, &newDir);
+        if (rc) {
+            return -rc;
+        }
+
+        DIRENT entry{};
+        if ((rc =
+                 DFS_GetNext(serialReadSector, &data.volInfo, &newDir, &entry)),
+            (rc == DFS_OK && entry.name[0] != 0)) {
+            return -EEXIST;
+        }
+    } else if (rc) {
+        return -rc;
+    }
+
+    if (serialReadSector(data.volInfo.unit, data.scratch, newFile.dirsector,
+                         1)) {
+        return EIO;
+    }
+
+    // write new name into old entry
+    std::memcpy(oldFileDirEntry.name,
+                ((PDIRENT)data.scratch)[newFile.diroffset].name, 11);
+    // write old entry into new dir sector
+    std::memcpy(data.scratch + (newFile.diroffset * sizeof(DIRENT)),
+                &oldFileDirEntry, sizeof(DIRENT));
+    // write new dir sector (with edited entry) back to disk
+    if (serialWriteSector(data.volInfo.unit, data.scratch, newFile.dirsector,
+                          1)) {
+        return -EIO;
+    }
+
+    // need to read old dir again bc if the old and new are in the same folder,
+    // anything read previously could be outdated now
+    if (serialReadSector(data.volInfo.unit, data.scratch, oldFile.dirsector,
+                         1)) {
+        return -EIO;
+    }
+    // erase old entry
+    ((PDIRENT)data.scratch)[oldFile.diroffset].name[0] = 0xe5;
+    if (serialWriteSector(data.volInfo.unit, data.scratch, oldFile.dirsector,
+                          1)) {
+        return -EIO;
+    }
+    return 0;
 }
 
 int serial_statfs(const char *path, struct statvfs *statv) {
