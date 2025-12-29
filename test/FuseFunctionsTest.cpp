@@ -10,7 +10,7 @@
 std::unordered_set<std::string> foundNames;
 int setFiller(void *buf, const char *name, const struct stat *stbuf,
               off_t off) {
-    foundNames.insert(std::string(name, 11));
+    foundNames.insert(std::string(name));
     std::cout << name << "\n";
     return 0;
 }
@@ -18,10 +18,17 @@ int setFiller(void *buf, const char *name, const struct stat *stbuf,
 void checkDirContains(const char *dirPath,
                       std::unordered_set<std::string> namesToCheck) {
     foundNames.clear();
-    int rc = serial_readdir(dirPath, nullptr, setFiller, 0, nullptr);
+    fuse_file_info dummyFileInfo{};
+    dummyFileInfo.flags |= O_RDONLY;
+    int rc = serial_opendir(dirPath, &dummyFileInfo);
     ASSERT_EQ(rc, 0) << std::strerror(-rc);
-    foundNames.erase(".          ");
-    foundNames.erase("..         ");
+
+    rc = serial_readdir(dirPath, nullptr, setFiller, 0, nullptr);
+    ASSERT_EQ(rc, 0) << std::strerror(-rc);
+
+    rc = serial_releasedir(dirPath, &dummyFileInfo);
+    ASSERT_EQ(rc, 0) << std::strerror(-rc);
+
     EXPECT_EQ(namesToCheck, foundNames);
 }
 
@@ -78,7 +85,7 @@ TEST_F(FuseFunctionFileTest, TruncGetattrTest) {
     dummyFileInfo.flags |= O_RDWR;
     int result = serial_open("testfile.txt", &dummyFileInfo);
     ASSERT_EQ(result, 0) << std::strerror(-result);
-    
+
     result = serial_truncate("testfile.txt", 513);
     ASSERT_EQ(result, 0) << std::strerror(-result);
 
@@ -109,7 +116,7 @@ TEST(FuseFunctionTest, RenameFileWithinFolderTest) {
     ASSERT_EQ(rc, 0) << std::strerror(-rc);
 
     fuse_file_info dummyFileInfo{};
-    dummyFileInfo.flags |= O_RDONLY;
+    dummyFileInfo.flags |= O_RDWR;
     rc = serial_open("testfile.txt", &dummyFileInfo);
     ASSERT_EQ(rc, 0) << std::strerror(-rc);
 
@@ -119,7 +126,13 @@ TEST(FuseFunctionTest, RenameFileWithinFolderTest) {
     ASSERT_EQ(rc, numBytes)
         << ((rc < 0) ? std::strerror(-rc) : "Incorrect num bytes written");
 
+    rc = serial_release("testfile.txt", nullptr);
+    ASSERT_EQ(rc, 0) << std::strerror(-rc);
+
     rc = serial_rename("testfile.txt", "newname.txt");
+    ASSERT_EQ(rc, 0) << std::strerror(-rc);
+
+    rc = serial_open("newname.txt", &dummyFileInfo);
     ASSERT_EQ(rc, 0) << std::strerror(-rc);
 
     char readResult[numBytes];
@@ -143,7 +156,7 @@ TEST(FuseFunctionTest, RenameFileFromOneFolderToAnotherTest) {
     ASSERT_EQ(rc, 0) << std::strerror(-rc);
 
     fuse_file_info dummyFileInfo{};
-    dummyFileInfo.flags |= O_RDONLY;
+    dummyFileInfo.flags |= O_RDWR;
     rc = serial_open("testfile.txt", &dummyFileInfo);
     ASSERT_EQ(rc, 0) << std::strerror(-rc);
 
@@ -153,7 +166,13 @@ TEST(FuseFunctionTest, RenameFileFromOneFolderToAnotherTest) {
     ASSERT_EQ(rc, numBytes)
         << ((rc < 0) ? std::strerror(-rc) : "Incorrect num bytes written");
 
+    rc = serial_release("testfile.txt", nullptr);
+    ASSERT_EQ(rc, 0) << std::strerror(-rc);
+
     rc = serial_rename("testfile.txt", "folder/newname.txt");
+    ASSERT_EQ(rc, 0) << std::strerror(-rc);
+
+    rc = serial_open("folder/newname.txt", &dummyFileInfo);
     ASSERT_EQ(rc, 0) << std::strerror(-rc);
 
     char readResult[numBytes];
@@ -184,7 +203,7 @@ TEST(FuseFunctionTest, CreateReadDeleteDirectoryTest) {
     rc = serial_mknod("testfold/file2.txt", S_IFREG, 0);
     ASSERT_EQ(rc, 0) << std::strerror(-rc);
 
-    checkDirContains("testfold", {"FILE1   TXT", "FILE2   TXT"});
+    checkDirContains("testfold", {"FILE1.TXT", "FILE2.TXT"});
 
     rc = serial_unlink("testfold/file1.txt");
     ASSERT_EQ(rc, 0) << std::strerror(-rc);
@@ -213,9 +232,9 @@ TEST(FuseFunctionTest, RenameDirectoryTest) {
     rc = serial_rename("testfold/subfold", "newfold");
     ASSERT_EQ(rc, 0) << std::strerror(-rc);
 
-    checkDirContains("", {"TESTFOLD   ", "NEWFOLD    "});
+    checkDirContains("", {"TESTFOLD", "NEWFOLD"});
     checkDirContains("testfold", {});
-    checkDirContains("newfold", {"FILE1   TXT"});
+    checkDirContains("newfold", {"FILE1.TXT"});
 
     rc = serial_unlink("newfold/file1.txt");
     ASSERT_EQ(rc, 0) << std::strerror(-rc);

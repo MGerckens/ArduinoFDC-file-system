@@ -21,6 +21,7 @@ extern "C" {
 
 #include "fuse.h"
 
+FATFS FatFs;
 std::unordered_map<std::string, FIL> openFiles;
 std::unordered_map<std::string, DIR> openDirs;
 
@@ -30,73 +31,84 @@ int serial_mkdir(const char *path, mode_t mode) {
 }
 
 int serial_unlink(const char *path) {
-    auto file = openFiles.find(std::string(path));
-    if (file == openFiles.end()) {
-        return -ENOENT;
+    auto fileIter = openFiles.find(std::string(path));
+    if (fileIter != openFiles.end()) {
+        FRESULT rc = f_close(&fileIter->second);
+        if (rc != 0) {
+            return -fresultToErrno(rc);
+        }
+        openFiles.erase(fileIter);
     }
-    FRESULT rc = f_close(&file->second);
-    if (rc != 0) {
-        return -fresultToErrno(rc);
-    }
-    openFiles.erase(file);
 
     return -fresultToErrno(f_unlink(path));
 }
 
-int serial_rmdir(const char *path) { return serial_unlink(path); }
+int serial_rmdir(const char *path) {
+    auto dirIter = openDirs.find(std::string(path));
+    if (dirIter != openDirs.end()) {
+        FRESULT rc = f_closedir(&dirIter->second);
+        if (rc != 0) {
+            return -fresultToErrno(rc);
+        }
+        openDirs.erase(dirIter);
+    }
+
+    return -fresultToErrno(f_unlink(path));
+}
 
 int serial_read(const char *path, char *buf, size_t size, off_t offset,
                 struct fuse_file_info *fi) {
-    auto file = openFiles.find(std::string(path));
-    if (file == openFiles.end()) {
+    auto fileIter = openFiles.find(std::string(path));
+    if (fileIter == openFiles.end()) {
         return -ENOENT;
     }
     UINT bytesRead = 0;
-    FRESULT rc = f_lseek(&file->second, offset);
+    FRESULT rc = f_lseek(&fileIter->second, offset);
     if (rc) {
         return -fresultToErrno(rc);
     }
-    rc = f_read(&file->second, buf, size, &bytesRead);
+    rc = f_read(&fileIter->second, buf, size, &bytesRead);
     return rc ? -fresultToErrno(rc) : bytesRead;
 }
 
 int serial_write(const char *path, const char *buf, size_t size, off_t offset,
                  struct fuse_file_info *fi) {
-    auto file = openFiles.find(std::string(path));
-    if (file == openFiles.end()) {
+    auto fileIter = openFiles.find(std::string(path));
+    if (fileIter == openFiles.end()) {
         return -ENOENT;
     }
     UINT bytesWritten = 0;
-    FRESULT rc = f_lseek(&file->second, offset);
+    FRESULT rc = f_lseek(&fileIter->second, offset);
     if (rc) {
         return -fresultToErrno(rc);
     }
-    rc = f_write(&file->second, buf, size, &bytesWritten);
+    rc = f_write(&fileIter->second, buf, size, &bytesWritten);
     return rc ? -fresultToErrno(rc) : bytesWritten;
 }
 
 int serial_mknod(const char *path, mode_t mode, dev_t dev) {
     (void)dev; // don't allow creating special files
     if ((mode & S_IFMT) != S_IFREG) {
+        std::cerr
+            << "mknod: tried to create something other than a regular file\n";
         return -ENOSYS;
-    }
-    if(openFiles.contains(std::string(path))){
-        return -EEXIST;
     }
 
     FIL file;
-    openFiles.insert({std::string(path), FIL{}});
-    FRESULT rc = f_open(&openFiles.at(std::string(path)), path, FA_CREATE_NEW);
-    if (rc && rc != FR_EXIST) {
-        openFiles.erase(std::string(path));
+    FRESULT rc = f_open(&file, path, FA_CREATE_NEW);
+    if (!rc) {
+        f_close(&file);
     }
     return -fresultToErrno(rc);
 }
 
 int serial_getattr(const char *path, struct stat *statbuf) {
+    // todo: f_stat doesn't work on root
     FILINFO info;
     FRESULT rc = f_stat(path, &info);
-    if(rc){return -fresultToErrno(rc);}
+    if (rc) {
+        return -fresultToErrno(rc);
+    }
 
     statbuf->st_dev = 0;        // assigned by fuse
     statbuf->st_ino = 0;        // assigned by fuse
@@ -117,162 +129,81 @@ int serial_getattr(const char *path, struct stat *statbuf) {
     return 0;
 }
 
+int serial_fgetattr(const char *path, struct stat *stbuf,
+                    struct fuse_file_info *fi) {
+    (void)fi;
+    return serial_getattr(path, stbuf);
+}
+
 int serial_rename(const char *path, const char *newpath) {
-    // FILEINFO oldFile;
-    // bool isDir = false;
-    // uint32_t rc =
-    //     DFS_OpenFile(serialReadSector, serialWriteSector, &data.volInfo,
-    //     path,
-    //                  DFS_READ, data.scratch, &oldFile);
-    // if (rc == EISDIR) {
-    //     isDir = true;
-    // } else if (rc) {
-    //     return -rc;
-    // }
-    // // extract old file's directory entry
-    // if (serialReadSector(data.volInfo.unit, data.scratch, oldFile.dirsector,
-    //                      1)) {
-    //     return -EIO;
-    // }
-    // DIRENT oldFileDirEntry = ((PDIRENT)data.scratch)[oldFile.diroffset];
-
-    // // get location of new file, creating it if it doesn't exist yet
-    // FILEINFO newFile;
-    // rc = DFS_OpenFile(serialReadSector, serialWriteSector, &data.volInfo,
-    //                   newpath,
-    //                   (oldFileDirEntry.attr & ATTR_DIRECTORY) ? DFS_CREATEDIR
-    //                                                           :
-    //                                                           DFS_CREATEFILE,
-    //                   data.scratch, &newFile);
-
-    // // can rename a directory to an existing empty directory
-    // if (rc == EEXIST && isDir) {
-    //     DIRINFO newDir;
-    //     uint32_t rc =
-    //         DFS_OpenDir(serialReadSector, &data.volInfo, newpath, &newDir);
-    //     if (rc) {
-    //         return -rc;
-    //     }
-
-    //     DIRENT entry{};
-    //     if ((rc =
-    //              DFS_GetNext(serialReadSector, &data.volInfo, &newDir,
-    //              &entry)),
-    //         (rc == DFS_OK && entry.name[0] != 0)) {
-    //         return -EEXIST;
-    //     }
-    // } else if (rc) {
-    //     return -rc;
-    // }
-
-    // if (serialReadSector(data.volInfo.unit, data.scratch, newFile.dirsector,
-    //                      1)) {
-    //     return EIO;
-    // }
-
-    // // write new name into old entry
-    // std::memcpy(oldFileDirEntry.name,
-    //             ((PDIRENT)data.scratch)[newFile.diroffset].name, 11);
-    // // write old entry into new dir sector
-    // std::memcpy(data.scratch + (newFile.diroffset * sizeof(DIRENT)),
-    //             &oldFileDirEntry, sizeof(DIRENT));
-    // // write new dir sector (with edited entry) back to disk
-    // if (serialWriteSector(data.volInfo.unit, data.scratch, newFile.dirsector,
-    //                       1)) {
-    //     return -EIO;
-    // }
-
-    // // need to read old dir again bc if the old and new are in the same
-    // folder,
-    // // anything read previously could be outdated now
-    // if (serialReadSector(data.volInfo.unit, data.scratch, oldFile.dirsector,
-    //                      1)) {
-    //     return -EIO;
-    // }
-    // // erase old entry
-    // ((PDIRENT)data.scratch)[oldFile.diroffset].name[0] = 0xe5;
-    // if (serialWriteSector(data.volInfo.unit, data.scratch, oldFile.dirsector,
-    //                       1)) {
-    //     return -EIO;
-    // }
-    return 0;
+    if (openFiles.contains(std::string(path))) {
+        std::cerr << "cannot rename an open file\n";
+        return -EINVAL;
+    }
+    return -fresultToErrno(f_rename(path, newpath));
 }
 
 int serial_statfs(const char *path, struct statvfs *statv) {
-    // (void)path;
-    std::cerr << "statfs\n";
-    // statv->f_type = 0x65735546; // fuse_super_magic
-    // statv->f_flag |= ST_SYNCHRONOUS;
-    // statv->f_bsize = 512;
-    // statv->f_frsize = 512 * data.volInfo.secperclus;
-    // statv->f_blocks = data.volInfo.numclusters;
-    // // todo complete
+    (void)path;
+    statv->f_bsize = 512 * FatFs.csize;
+    statv->f_frsize = statv->f_bsize;
+    statv->f_blocks = FatFs.n_fatent - 2;
+    statv->f_bfree = FatFs.free_clst;
+    statv->f_bavail = statv->f_ffree;
 
-    return -ENOSYS;
+    statv->f_files = 0; // FAT doesn't use inodes
+    statv->f_ffree = 0;
+    statv->f_favail = 0;
+
+    statv->f_flag = (ST_SYNCHRONOUS | ST_NODEV);
+    if (FF_FS_READONLY) {
+        statv->f_flag |= ST_RDONLY;
+    }
+    statv->f_type = 0x65735546; // fuse_super_magic
+    statv->f_namemax = 12;
+    return 0;
 }
 
 int serial_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                    off_t offset, struct fuse_file_info *fi) {
-    // DIRINFO dir{};
-    // dir.scratch = data.scratch;
-    // uint32_t rc = DFS_OpenDir(serialReadSector, &data.volInfo, path, &dir);
-    // if (rc) {
-    //     return -rc;
-    // }
+    auto dirIter = openDirs.find(std::string(path));
+    if (dirIter == openDirs.end()) {
+        return -ENOENT;
+    }
 
-    // int i = 0;
-    // DIRENT entry{};
-    // // skip to desired offset
-    // for (i = 0; i < offset; ++i) {
-    //     if (DFS_GetNext(serialReadSector, &data.volInfo, &dir, &entry)) {
-    //         return 0;
-    //     }
-    // }
-    // while ((rc = DFS_GetNext(serialReadSector, &data.volInfo, &dir, &entry)),
-    //        (rc == DFS_OK && entry.name[0] != 0)) {
-    //     // struct stat attributes;
-    //     char nullTerminatedName[12];
-    //     std::memcpy(nullTerminatedName, entry.name, 11);
-    //     nullTerminatedName[11] = '\0';
-    //     // not totally sure if the formatting of the file name matters,
-    //     // here it will be "NAME    TXT" instead of "NAME.TXT"
-    //     if (filler(buf, nullTerminatedName, NULL, offset + 1)) {
-    //         return 0;
-    //     }
-    // }
-
-    // if (rc == DFS_EOF) {
-    //     return 0;
-    // } else {
-    //     return -rc;
-    // }
-    return -ENOSYS;
+    FILINFO info;
+    int i = 0;
+    for (i = 0; i < offset; ++i) {
+        f_readdir(&dirIter->second, &info);
+        if (info.fname[0] == '\x00') {
+            return 0;
+        }
+    }
+    while (!f_readdir(&dirIter->second, &info)) {
+        if (info.fname[0] == '\x00') {
+            return 0;
+        }
+        if (filler(buf, info.fname, NULL, i++)) {
+            return 0;
+        }
+    }
+    return 0;
 }
 
 void *serial_init(struct fuse_conn_info *conn) {
-    // initSerialConnection(DEFAULT_PORT, 115200);
-
-    // data.partitionStart = DFS_GetPtnStart(serialReadSector, 0, data.scratch,
-    // 0,
-    //                                       NULL, NULL, &data.partitionSize);
-    // uint32_t rc = DFS_GetVolInfo(serialReadSector, 0, data.scratch,
-    //                              data.partitionStart, &data.volInfo);
     f_mount(&FatFs, "", 0);
 
-    conn->max_write = std::min<std::size_t>(UINT32_MAX, SIZE_MAX);
+    conn->max_write = 0;
     conn->async_read = 0;
     conn->max_readahead = 0;
     conn->max_background = 0;
-    // todo remove FUSE_CAP_ATOMIC_O_TRUNC when trunc is supported
-    conn->capable =
-        conn->want & ~(FUSE_CAP_ASYNC_READ | FUSE_CAP_ATOMIC_O_TRUNC);
+    conn->want |= FUSE_CAP_BIG_WRITES;
 
     return nullptr;
 }
 
 int serial_open(const char *path, struct fuse_file_info *fi) {
     fi->direct_io = 1;
-    FIL file;
     // for ??reasons??, opening a FIL and then adding it to the map causes it to
     // be corrupted inserting an empty FIL and then opening it works
     openFiles.insert({std::string(path), FIL{}});
@@ -307,11 +238,17 @@ int serial_ftruncate(const char *path, off_t newsize, struct fuse_file_info *) {
 }
 
 int serial_opendir(const char *path, struct fuse_file_info *fi) {
-    std::cerr << "opendir\n";
-    return -ENOSYS;
+    openDirs.insert({std::string(path), DIR{}});
+    FRESULT rc = f_opendir(&openDirs.at(std::string(path)), path);
+    if (rc) {
+        openDirs.erase(std::string(path));
+    }
+
+    return -fresultToErrno(rc);
 }
 
 int serial_release(const char *path, struct fuse_file_info *fi) {
+    (void)fi;
     // close if not already closed
     auto file = openFiles.find(std::string(path));
     if (file != openFiles.end()) {
@@ -324,13 +261,11 @@ int serial_release(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-// needs new functionality in dosfs
 int serial_utimens(const char *path, const struct timespec tv[2]) {
     std::cerr << "utimens\n";
     return -ENOSYS;
 }
 
-// probably can leave as no-ops
 // destroy will be useful if I put userData in private_data instead of a global
 void serial_destroy(void *userdata) { std::cout << "destroy\n"; }
 
@@ -343,14 +278,23 @@ int serial_fsync(const char *path, int datasync, struct fuse_file_info *fi) {
     (void)datasync;
     (void)fi;
     auto fileIter = openFiles.find(std::string(path));
-    if(fileIter == openFiles.end()){
+    if (fileIter == openFiles.end()) {
         return -ENOENT;
     }
     return -fresultToErrno(f_sync(&fileIter->second));
 }
 
 int serial_releasedir(const char *path, struct fuse_file_info *fi) {
-    std::cout << "releasedir\n";
+    (void)fi;
+    // close if not already closed
+    auto dirIter = openDirs.find(std::string(path));
+    if (dirIter != openDirs.end()) {
+        FRESULT rc = f_closedir(&dirIter->second);
+        if (rc == 0) {
+            openDirs.erase(dirIter);
+        }
+        return -fresultToErrno(rc);
+    }
     return 0;
 }
 
@@ -379,6 +323,29 @@ int serial_listxattr(const char *path, char *list, size_t size) {
 
 int serial_removexattr(const char *path, const char *name) {
     std::cerr << "removexattr\n";
+    return -ENOSYS;
+}
+
+int serial_lock(const char *path, struct fuse_file_info *fi, int cmd,
+                struct flock *locks) {
+    std::cerr << "lock\n";
+    return -ENOSYS;
+}
+
+int serial_bmap(const char *path, size_t blocksize, uint64_t *blockno) {
+    std::cerr << "bmap\n";
+    return -ENOSYS;
+}
+
+int serial_ioctl(const char *path, int cmd, void *arg,
+                 struct fuse_file_info *fi, unsigned int flags, void *data) {
+    std::cerr << "ioctl\n";
+    return -ENOSYS;
+}
+
+int serial_poll(const char *path, struct fuse_file_info *fi,
+                struct fuse_pollhandle *ph, unsigned *reventsp) {
+    std::cerr << "poll\n";
     return -ENOSYS;
 }
 
