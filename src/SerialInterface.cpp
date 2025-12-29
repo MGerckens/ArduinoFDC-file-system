@@ -110,7 +110,7 @@ sectorToHTS(uint32_t logicalSector) {
     return {head, track, physicalSector};
 }
 
-extern "C" void initSerialConnection(const char *device, long baudRate) {
+void initSerialConnection(const char *device, long baudRate) {
     serial = std::make_unique<SerialWrapper>(device, baudRate);
 }
 
@@ -202,3 +202,66 @@ extern "C" uint32_t serialWriteSector(uint8_t _, const uint8_t *buffer,
     }
     return 0;
 }
+extern "C" {
+DSTATUS disk_initialize(BYTE pdrv) {
+    (void)pdrv;
+    initSerialConnection(DEFAULT_PORT, 115200);
+    return 0;
+}
+
+DSTATUS disk_status(BYTE pdrv) {
+    (void)pdrv;
+    return 0;
+}
+
+DRESULT disk_read(BYTE pdrv, BYTE *buff, LBA_t sector, UINT count) {
+    BYTE *currentBuffPtr = buff;
+    for (UINT i = 0; i < count; ++i) {
+        if (serialReadSector(0, currentBuffPtr, sector + i, 1)) {
+            return RES_ERROR;
+        }
+        currentBuffPtr += 512;
+    }
+    return RES_OK;
+}
+
+DRESULT disk_write(BYTE pdrv, const BYTE *buff, LBA_t sector, UINT count) {
+    const BYTE *currentBuffPtr = buff;
+    for (UINT i = 0; i < count; ++i) {
+        if (serialWriteSector(0, currentBuffPtr, sector + i, 1)) {
+            return RES_ERROR;
+        }
+        currentBuffPtr += 512;
+    }
+    return RES_OK;
+}
+
+DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void *buff) {
+    switch (cmd) {
+    case CTRL_SYNC: {
+        return RES_OK;
+    }
+    case GET_SECTOR_COUNT: {
+        // todo: check disk geometry
+        *reinterpret_cast<LBA_t *>(buff) = 2880;
+        return RES_OK;
+    }
+    case GET_SECTOR_SIZE: {
+        *reinterpret_cast<WORD *>(buff) = 512;
+        return RES_OK;
+    }
+    case GET_BLOCK_SIZE: {
+        *reinterpret_cast<DWORD *>(buff) = 1;
+        return RES_OK;
+    }
+    default: {
+        std::cerr << "Invalid command in ioctl: " << static_cast<int>(cmd)
+                  << "\n";
+        return RES_ERROR;
+    }
+    }
+}
+}
+
+// todo
+// DWORD get_fattime(void) {}

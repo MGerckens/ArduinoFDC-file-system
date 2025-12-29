@@ -14,15 +14,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(libfuse)
 
-FetchContent_Declare(
-    dosfs
-    GIT_REPOSITORY "git@github.com:MGerckens/DosFS.git"
-    GIT_TAG "main"
-)
-FetchContent_MakeAvailable(dosfs)
+# FetchContent_Declare(
+#     dosfs
+#     GIT_REPOSITORY "git@github.com:MGerckens/DosFS.git"
+#     GIT_TAG "main"
+# )
+# FetchContent_MakeAvailable(dosfs)
 
-# need to link DosFS as C++ to use SerialInterface (in c++) in the callbacks
-set_target_properties(DosFS PROPERTIES LINKER_LANGUAGE CXX)
+# # need to link DosFS as C++ to use SerialInterface (in c++) in the callbacks
+# set_target_properties(DosFS PROPERTIES LINKER_LANGUAGE CXX)
 
 add_subdirectory(src)
 

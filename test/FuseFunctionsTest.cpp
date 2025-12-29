@@ -48,7 +48,7 @@ TEST_F(FuseFunctionFileTest, MknodUnlinkTest) {
 
 TEST_F(FuseFunctionFileTest, OpenWriteReadTest) {
     fuse_file_info dummyFileInfo{};
-    dummyFileInfo.flags |= O_RDONLY;
+    dummyFileInfo.flags |= O_RDWR;
     int result = serial_open("testfile.txt", &dummyFileInfo);
     ASSERT_EQ(result, 0) << std::strerror(-result);
 
@@ -71,6 +71,34 @@ TEST_F(FuseFunctionFileTest, OpenWriteReadTest) {
 TEST_F(FuseFunctionFileTest, AccessTest) {
     int rc = serial_access("testfile.txt", R_OK);
     ASSERT_EQ(rc, 0) << std::strerror(-rc);
+}
+
+TEST_F(FuseFunctionFileTest, TruncGetattrTest) {
+    fuse_file_info dummyFileInfo{};
+    dummyFileInfo.flags |= O_RDWR;
+    int result = serial_open("testfile.txt", &dummyFileInfo);
+    ASSERT_EQ(result, 0) << std::strerror(-result);
+    
+    result = serial_truncate("testfile.txt", 513);
+    ASSERT_EQ(result, 0) << std::strerror(-result);
+
+    result = serial_fsync("testfile.txt", true, &dummyFileInfo);
+    ASSERT_EQ(result, 0) << std::strerror(-result);
+
+    struct stat attrs;
+    result = serial_getattr("testfile.txt", &attrs);
+    ASSERT_EQ(result, 0) << std::strerror(-result);
+    EXPECT_EQ(attrs.st_size, 513);
+
+    result = serial_truncate("testfile.txt", 12);
+    ASSERT_EQ(result, 0) << std::strerror(-result);
+
+    result = serial_fsync("testfile.txt", true, &dummyFileInfo);
+    ASSERT_EQ(result, 0) << std::strerror(-result);
+
+    result = serial_getattr("testfile.txt", &attrs);
+    ASSERT_EQ(result, 0) << std::strerror(-result);
+    EXPECT_EQ(attrs.st_size, 12);
 }
 
 TEST(FuseFunctionTest, RenameFileWithinFolderTest) {

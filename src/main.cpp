@@ -35,18 +35,19 @@ static fuse_operations serialOps = {
 
 int main(int argc, char *argv[]) {
     // fuse_args args = FUSE_ARGS_INIT(argc, argv);
-    initSerialConnection(DEFAULT_PORT, 115200);
+    // initSerialConnection(DEFAULT_PORT, 115200);
 
-    data.partitionStart = DFS_GetPtnStart(serialReadSector, 0, data.scratch, 0,
-                                          NULL, NULL, &data.partitionSize);
-    uint32_t rc = DFS_GetVolInfo(serialReadSector, 0, data.scratch,
-                                 data.partitionStart, &data.volInfo);
-    if (rc) {
-        std::cout << "failed to get volume info\n";
-        return -1;
-    }
+    // data.partitionStart = DFS_GetPtnStart(serialReadSector, 0, data.scratch, 0,
+    //                                       NULL, NULL, &data.partitionSize);
+    // uint32_t rc = DFS_GetVolInfo(serialReadSector, 0, data.scratch,
+    //                              data.partitionStart, &data.volInfo);
+    // if (rc) {
+    //     std::cout << "failed to get volume info\n";
+    //     return -1;
+    // }
 
-    int ret = fuse_main(argc, argv, &serialOps, &data);
+    // int ret = fuse_main(argc, argv, &serialOps, &data);
 
-    return ret;
+    // return ret;
+    return 0;
 }

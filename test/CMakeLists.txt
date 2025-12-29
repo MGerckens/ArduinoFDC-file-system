@@ -13,20 +13,11 @@ FetchContent_MakeAvailable(googletest)
 
 include(GoogleTest)
 
-add_executable(DosFSSerialTest
-    DosFSSerialTest.cpp
-)
-target_link_libraries(DosFSSerialTest PUBLIC FloppySerial DosFS)
-
-if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
-    target_compile_options(DosFSSerialTest PUBLIC "-fsanitize=undefined")
-    target_link_options(DosFSSerialTest PUBLIC "-lubsan" "-fsanitize=undefined")
-endif()
-
 add_executable(FuseFunctionsTest
+    ../src/FuseFunctions.hpp
     FuseFunctionsTest.cpp
 )
-target_link_libraries(FuseFunctionsTest PUBLIC gtest_main FloppySerial DosFS)
+target_link_libraries(FuseFunctionsTest PUBLIC gtest_main FloppySerial)
 target_compile_definitions(FuseFunctionsTest PUBLIC "-D_FILE_OFFSET_BITS=64")
 gtest_discover_tests(FuseFunctionsTest)
 
