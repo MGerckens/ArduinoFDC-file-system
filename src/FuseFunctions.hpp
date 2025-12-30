@@ -68,6 +68,7 @@ int serial_read(const char *path, char *buf, size_t size, off_t offset,
         return -fresultToErrno(rc);
     }
     rc = f_read(&fileIter->second, buf, size, &bytesRead);
+    f_rewind(&fileIter->second);
     return rc ? -fresultToErrno(rc) : bytesRead;
 }
 
@@ -83,6 +84,7 @@ int serial_write(const char *path, const char *buf, size_t size, off_t offset,
         return -fresultToErrno(rc);
     }
     rc = f_write(&fileIter->second, buf, size, &bytesWritten);
+    f_rewind(&fileIter->second);
     return rc ? -fresultToErrno(rc) : bytesWritten;
 }
 
@@ -177,21 +179,33 @@ int serial_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     }
 
     FILINFO info;
+    FRESULT rc;
     int i = 0;
     for (i = 0; i < offset; ++i) {
-        f_readdir(&dirIter->second, &info);
+        rc = f_readdir(&dirIter->second, &info);
+        if (rc) {
+            f_rewinddir(&dirIter->second);
+            return -fresultToErrno(rc);
+        }
         if (info.fname[0] == '\x00') {
+            f_rewinddir(&dirIter->second);
             return 0;
         }
     }
-    while (!f_readdir(&dirIter->second, &info)) {
+    while ((rc = f_readdir(&dirIter->second, &info)), (rc == FR_OK)) {
+        if (rc) {
+            return -fresultToErrno(rc);
+        }
         if (info.fname[0] == '\x00') {
+            f_rewinddir(&dirIter->second);
             return 0;
         }
-        if (filler(buf, info.fname, NULL, i++)) {
+        if (filler(buf, info.fname, NULL, ++i)) {
+            f_rewinddir(&dirIter->second);
             return 0;
         }
     }
+    f_rewinddir(&dirIter->second);
     return 0;
 }
 
@@ -234,8 +248,11 @@ int serial_truncate(const char *path, off_t newsize) {
     if (rc) {
         return -fresultToErrno(rc);
     }
-
-    return -fresultToErrno(f_truncate(&fileIter->second));
+    rc = f_truncate(&fileIter->second);
+    if (rc) {
+        return -fresultToErrno(rc);
+    }
+    return -fresultToErrno(f_rewind(&fileIter->second));
 }
 
 int serial_ftruncate(const char *path, off_t newsize, struct fuse_file_info *) {

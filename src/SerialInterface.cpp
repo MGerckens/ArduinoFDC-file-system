@@ -93,9 +93,8 @@ std::unique_ptr<SerialWrapper> serial;
 static std::tuple<uint8_t, uint8_t, uint8_t>
 sectorToHTS(uint32_t logicalSector) {
     // todo: this is specific to 1.44MB 3.5"
-    constexpr uint8_t TRACKS_PER_HEAD = 80;
     constexpr uint8_t SECTORS_PER_TRACK = 18;
-    constexpr uint32_t SECTORS_PER_HEAD = 1440;
+    constexpr uint8_t NUM_HEADS = 2;
 
     if (logicalSector >= 2880) {
         return {99, 99, 99};
@@ -105,7 +104,7 @@ sectorToHTS(uint32_t logicalSector) {
     uint8_t physicalSector = (logicalSector % (SECTORS_PER_TRACK)) + 1;
     uint8_t track = logicalSector / (SECTORS_PER_TRACK * 2);
     uint8_t head =
-        (logicalSector % (SECTORS_PER_TRACK * 2)) >= SECTORS_PER_TRACK;
+        (logicalSector % (SECTORS_PER_TRACK * NUM_HEADS)) >= SECTORS_PER_TRACK;
 
     return {head, track, physicalSector};
 }
@@ -117,7 +116,7 @@ void initSerialConnection(const char *device, long baudRate) {
 extern "C" uint32_t serialReadSector(uint8_t _, uint8_t *buffer,
                                      uint32_t sector, uint32_t count) {
     auto [head, track, sector_] = sectorToHTS(sector);
-    if (head == 999 && track == 99 && sector_ == 99) {
+    if (head == 99 && track == 99 && sector_ == 99) {
         return 1;
     }
     std::string command = std::format("r{},{},{}\r\n", track, sector_, head);
@@ -161,6 +160,9 @@ extern "C" uint32_t serialReadSector(uint8_t _, uint8_t *buffer,
 extern "C" uint32_t serialWriteSector(uint8_t _, const uint8_t *buffer,
                                       uint32_t sector, uint32_t count) {
     auto [head, track, sector_] = sectorToHTS(sector);
+    if (head == 99 && track == 99 && sector_ == 99) {
+        return 1;
+    }
 
     static char outHexBuffer[1024];
 
