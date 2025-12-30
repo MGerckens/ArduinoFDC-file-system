@@ -103,20 +103,25 @@ int serial_mknod(const char *path, mode_t mode, dev_t dev) {
 }
 
 int serial_getattr(const char *path, struct stat *statbuf) {
-    // todo: f_stat doesn't work on root
     FILINFO info;
     FRESULT rc = f_stat(path, &info);
     if (rc) {
         return -fresultToErrno(rc);
     }
 
-    statbuf->st_dev = 0;        // assigned by fuse
-    statbuf->st_ino = 0;        // assigned by fuse
-    statbuf->st_mode = S_IFREG; // only regular files are supported
-    statbuf->st_nlink = 0;      // FAT12 doesn't support hardlinks
-    statbuf->st_uid = 0;        // or users
-    statbuf->st_gid = 0;        // or groups
-    statbuf->st_rdev = 0;       // not a device
+    statbuf->st_dev = 0; // assigned by fuse
+    statbuf->st_ino = 0; // assigned by fuse
+    // give everyone all permissions
+    statbuf->st_mode = S_IRWXU | S_IRWXG | S_IRWXO;
+    if (info.fattrib & AM_DIR) {
+        statbuf->st_mode |= S_IFDIR;
+    } else {
+        statbuf->st_mode |= S_IFREG;
+    }
+    statbuf->st_nlink = 0; // FAT12 doesn't support hardlinks
+    statbuf->st_uid = 0;   // or users
+    statbuf->st_gid = 0;   // or groups
+    statbuf->st_rdev = 0;  // not a device
     statbuf->st_size = info.fsize;
     statbuf->st_blksize = 512;
     // this might be inaccurate if the file is fragmented
@@ -160,7 +165,7 @@ int serial_statfs(const char *path, struct statvfs *statv) {
         statv->f_flag |= ST_RDONLY;
     }
     statv->f_type = 0x65735546; // fuse_super_magic
-    statv->f_namemax = 12;
+    statv->f_namemax = 99;
     return 0;
 }
 

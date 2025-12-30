@@ -1,8 +1,6 @@
 #ifndef HELPERS_H_
 #define HELPERS_H_
-// extern "C" {
-// #include "dosfs.h"
-// }
+
 #include "elm-fatfs/ff.h"
 #include <cerrno>
 #include <ctime>
@@ -13,53 +11,30 @@
 #include <unordered_map>
 #include <variant>
 
-// using OpenedEntity = std::variant<FIL, DIR>;
-// uint8_t scratchSector[512];
-// struct UserData {
-//     uint8_t *scratch = &scratchSector[0];
-//     uint32_t partitionStart;
-//     uint32_t partitionSize;
-//     // VOLINFO volInfo;
-//     // std::unordered_map<std::string, OpenedEntity> openedEntities;
-// };
-// UserData data;
-
 constexpr uint8_t unixFlagsToFatFlags(int flags) {
-    switch (flags) {
-    case O_RDONLY:
-        // r
-        return FA_READ;
-    case O_WRONLY:
-        // w
-        return FA_WRITE;
-    case O_RDWR:
-        // r+
-        return FA_READ | FA_WRITE;
-    case (O_RDWR | O_CREAT | O_TRUNC):
-        // w+
-        return FA_CREATE_ALWAYS | FA_WRITE | FA_READ;
-    case (O_WRONLY | O_CREAT | O_APPEND):
-        // a
-        return FA_OPEN_APPEND | FA_WRITE;
-    case (O_RDWR | O_CREAT | O_APPEND):
-        // a+
-        return FA_OPEN_APPEND | FA_WRITE | FA_READ;
-    case (O_WRONLY | O_CREAT | O_TRUNC | O_EXCL):
-        // wx
-        return FA_CREATE_NEW | FA_WRITE | FA_READ;
-    case (O_RDWR | O_CREAT | O_TRUNC | O_EXCL):
-        // w+x
-        return FA_CREATE_NEW | FA_WRITE | FA_READ;
-    case (O_WRONLY | O_CREAT | O_APPEND | O_EXCL):
-        // ax
-        return FA_OPEN_APPEND | FA_WRITE;
-    case (O_RDWR | O_CREAT | O_APPEND | O_EXCL):
-        // a+x
-        return FA_OPEN_APPEND | FA_WRITE | FA_READ;
-    default:
-        std::cerr << "got invalid mode " << flags << "\n";
-        return 0;
+    uint8_t result = 0;
+    if ((flags & O_ACCMODE) == O_RDONLY) {
+        result |= FA_READ;
+    } else if ((flags & O_ACCMODE) == O_WRONLY) {
+        result |= FA_WRITE;
+    } else if ((flags & O_ACCMODE) == O_RDWR) {
+        result |= (FA_WRITE | FA_READ);
     }
+
+    if (flags & O_CREAT) {
+        if (flags & O_APPEND) {
+            result |= FA_OPEN_APPEND;
+        }
+        if (flags & O_TRUNC) {
+            if (flags & O_EXCL) {
+                result |= FA_CREATE_NEW;
+            } else {
+                result |= FA_CREATE_ALWAYS;
+            }
+        }
+    }
+
+    return result;
 }
 
 int fresultToErrno(FRESULT result) {
@@ -67,8 +42,10 @@ int fresultToErrno(FRESULT result) {
     case FR_OK:
         return 0;
     case FR_DISK_ERR:
+        std::cerr << "disk error\n";
         return EIO;
     case FR_INT_ERR:
+        std::cerr << "internal error\n";
         return EIO; // ?
     case FR_NOT_READY:
         return EAGAIN;

@@ -3,7 +3,6 @@
 
 #include <chrono>
 #include <cstddef>
-#include <exception>
 #include <format>
 #include <memory>
 #include <string>
@@ -99,7 +98,8 @@ sectorToHTS(uint32_t logicalSector) {
     constexpr uint32_t SECTORS_PER_HEAD = 1440;
 
     if (logicalSector >= 2880) {
-        throw std::runtime_error("invalid sector!");
+        return {99, 99, 99};
+        std::cerr << "invalid sector!";
     }
 
     uint8_t physicalSector = (logicalSector % (SECTORS_PER_TRACK)) + 1;
@@ -117,6 +117,9 @@ void initSerialConnection(const char *device, long baudRate) {
 extern "C" uint32_t serialReadSector(uint8_t _, uint8_t *buffer,
                                      uint32_t sector, uint32_t count) {
     auto [head, track, sector_] = sectorToHTS(sector);
+    if (head == 999 && track == 99 && sector_ == 99) {
+        return 1;
+    }
     std::string command = std::format("r{},{},{}\r\n", track, sector_, head);
 
     bool success = true;
@@ -141,9 +144,8 @@ extern "C" uint32_t serialReadSector(uint8_t _, uint8_t *buffer,
         } else {
             if (std::chrono::system_clock::now() - start >
                 std::chrono::seconds(5)) {
-                throw std::runtime_error(
-                    std::format("Receive timed out after receiving {} bytes\n",
-                                recvBufferIdx));
+                std::cerr << "Receive timed out after receiving"
+                          << recvBufferIdx << " bytes\n";
                 return 1;
             }
         }
@@ -173,7 +175,7 @@ extern "C" uint32_t serialWriteSector(uint8_t _, const uint8_t *buffer,
 
     bool success = serial->writeStr(command);
     if (!success) {
-        throw std::runtime_error("Failed to send write command\n");
+        std::cerr << "Failed to send write command\n";
         return 1;
     }
 
@@ -189,8 +191,7 @@ extern "C" uint32_t serialWriteSector(uint8_t _, const uint8_t *buffer,
         }
         if (std::chrono::system_clock::now() - start >
             std::chrono::seconds(5)) {
-            throw std::runtime_error(
-                "Timed out waiting for write confirmation\n");
+            std::cerr << "Timed out waiting for write confirmation\n";
             return 1;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
