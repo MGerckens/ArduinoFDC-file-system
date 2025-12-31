@@ -18,6 +18,8 @@ add_library(FloppySerial
     elm-fatfs/ff.c
     elm-fatfs/ff.h
     elm-fatfs/ffconf.h
+    elm-fatfs/ffunicode.c
+    elm-fatfs/ffsystem.c
 )
 target_include_directories(FloppySerial SYSTEM PRIVATE ${FETCHCONTENT_BASE_DIR}/ceserial-src)
 target_include_directories(FloppySerial PUBLIC ".")
