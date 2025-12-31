@@ -1,6 +1,6 @@
-#include "SerialInterface.hpp"
 #include "Helpers.hpp"
 #include "SerialWrapper.hpp"
+#include "elm-fatfs/diskio.h"
 
 #include <chrono>
 #include <cstddef>
@@ -12,85 +12,13 @@
 #include <thread>
 #include <tuple>
 
-static constexpr uint8_t hexToNibble(char number) {
-    switch (number) {
-    case '0':
-        return 0;
-    case '1':
-        return 1;
-    case '2':
-        return 2;
-    case '3':
-        return 3;
-    case '4':
-        return 4;
-    case '5':
-        return 5;
-    case '6':
-        return 6;
-    case '7':
-        return 7;
-    case '8':
-        return 8;
-    case '9':
-        return 9;
-    case 'A':
-        return 10;
-    case 'B':
-        return 11;
-    case 'C':
-        return 12;
-    case 'D':
-        return 13;
-    case 'E':
-        return 14;
-    case 'F':
-        return 15;
-    default:
-        return CHAR_MAX;
-    }
-}
+#ifdef __linux__
+constexpr const char DEFAULT_PORT[] = "/dev/ttyUSB0";
+#else
+constexpr const char DEFAULT_PORT[] = "COM5";
+#endif
 
-static constexpr char nibbleToHex(uint8_t nibble) {
-    switch (nibble) {
-    case 0:
-        return '0';
-    case 1:
-        return '1';
-    case 2:
-        return '2';
-    case 3:
-        return '3';
-    case 4:
-        return '4';
-    case 5:
-        return '5';
-    case 6:
-        return '6';
-    case 7:
-        return '7';
-    case 8:
-        return '8';
-    case 9:
-        return '9';
-    case 10:
-        return 'A';
-    case 11:
-        return 'B';
-    case 12:
-        return 'C';
-    case 13:
-        return 'D';
-    case 14:
-        return 'E';
-    case 15:
-        return 'F';
-    default:
-        return CHAR_MAX;
-    }
-}
-
-std::unique_ptr<SerialWrapper> serial;
+static std::unique_ptr<SerialWrapper> serial;
 
 static std::tuple<uint8_t, uint8_t, uint8_t>
 sectorToHTS(uint32_t logicalSector) {
@@ -115,8 +43,7 @@ void initSerialConnection(const char *device, long baudRate) {
     serial = std::make_unique<SerialWrapper>(device, baudRate);
 }
 
-extern "C" uint32_t serialReadSector(uint8_t _, uint8_t *buffer,
-                                     uint32_t sector, uint32_t count) {
+uint32_t serialReadSector(uint8_t *buffer, uint32_t sector) {
     auto [head, track, sector_] = sectorToHTS(sector);
     if (head == 99 && track == 99 && sector_ == 99) {
         return 1;
@@ -159,8 +86,7 @@ extern "C" uint32_t serialReadSector(uint8_t _, uint8_t *buffer,
     return 0;
 }
 
-extern "C" uint32_t serialWriteSector(uint8_t _, const uint8_t *buffer,
-                                      uint32_t sector, uint32_t count) {
+uint32_t serialWriteSector(const uint8_t *buffer, uint32_t sector) {
     auto [head, track, sector_] = sectorToHTS(sector);
     if (head == 99 && track == 99 && sector_ == 99) {
         return 1;
@@ -222,7 +148,7 @@ DSTATUS disk_status(BYTE pdrv) {
 DRESULT disk_read(BYTE pdrv, BYTE *buff, LBA_t sector, UINT count) {
     BYTE *currentBuffPtr = buff;
     for (UINT i = 0; i < count; ++i) {
-        if (serialReadSector(0, currentBuffPtr, sector + i, 1)) {
+        if (serialReadSector(currentBuffPtr, sector + i)) {
             return RES_ERROR;
         }
         currentBuffPtr += 512;
@@ -233,7 +159,7 @@ DRESULT disk_read(BYTE pdrv, BYTE *buff, LBA_t sector, UINT count) {
 DRESULT disk_write(BYTE pdrv, const BYTE *buff, LBA_t sector, UINT count) {
     const BYTE *currentBuffPtr = buff;
     for (UINT i = 0; i < count; ++i) {
-        if (serialWriteSector(0, currentBuffPtr, sector + i, 1)) {
+        if (serialWriteSector(currentBuffPtr, sector + i)) {
             return RES_ERROR;
         }
         currentBuffPtr += 512;

@@ -1,5 +1,4 @@
 #include "FuseFunctions.hpp"
-#include "SerialInterface.hpp"
 #include "gtest/gtest.h"
 
 #include <cstdint>

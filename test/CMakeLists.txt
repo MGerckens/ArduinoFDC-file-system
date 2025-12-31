@@ -7,6 +7,7 @@ FetchContent_Declare(
     GIT_REPOSITORY git@github.com:google/googletest.git
     GIT_TAG "v1.17.0"
 )
+
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
@@ -14,7 +15,6 @@ FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 
 add_executable(FuseFunctionsTest
-    ../src/FuseFunctions.hpp
     FuseFunctionsTest.cpp
 )
 target_link_libraries(FuseFunctionsTest PUBLIC gtest_main FloppySerial)

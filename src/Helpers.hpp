@@ -3,10 +3,59 @@
 
 #include "elm-fatfs/ff.h"
 #include <cerrno>
-#include <ctime>
+#include <climits>
+#include <cstdint>
 #include <fcntl.h> // for open modes
 #include <iostream>
 #include <utility>
+
+constexpr uint8_t hexToNibble(char number) {
+    switch (number) {
+    case '0':
+        return 0;
+    case '1':
+        return 1;
+    case '2':
+        return 2;
+    case '3':
+        return 3;
+    case '4':
+        return 4;
+    case '5':
+        return 5;
+    case '6':
+        return 6;
+    case '7':
+        return 7;
+    case '8':
+        return 8;
+    case '9':
+        return 9;
+    case 'A':
+        return 10;
+    case 'B':
+        return 11;
+    case 'C':
+        return 12;
+    case 'D':
+        return 13;
+    case 'E':
+        return 14;
+    case 'F':
+        return 15;
+    default:
+        return CHAR_MAX;
+    }
+}
+
+constexpr char table[16] = {'0', '1', '2', '3', '4', '5', '6', '7',
+                            '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+constexpr char nibbleToHex(uint8_t nibble) {
+    if (nibble > 15) {
+        return CHAR_MAX;
+    }
+    return table[nibble];
+}
 
 constexpr uint8_t unixFlagsToFatFlags(int flags) {
     uint8_t result = 0;
@@ -90,35 +139,7 @@ constexpr int fresultToErrno(FRESULT result) {
     }
 }
 
-inline time_t fatTimeToUnixSeconds(WORD fatDate, WORD fatTime) {
-    std::tm fileTime;
-    // years since 1980 -> years since 1900
-    fileTime.tm_year = ((fatDate & 0b1111111000000000) >> 9) + 80;
-    // 1-12 -> 0-11
-    fileTime.tm_mon = ((fatDate & 0b0000000111100000) >> 5) - 1;
-    fileTime.tm_mday = (fatDate & 0b0000000000011111);
-    fileTime.tm_hour = (fatTime & 0b1111100000000000) >> 11;
-    fileTime.tm_min = (fatTime & 0b0000011111100000) >> 5;
-    // two second resolution
-    fileTime.tm_sec = (fatTime & 0b0000000000011111) * 2;
-    fileTime.tm_isdst = -1;
-    return std::mktime(&fileTime);
-}
-
-inline std::pair<WORD, WORD> unixSecondsToFatTime(time_t time) {
-    std::tm *localTime = std::localtime(&time);
-
-    WORD fatDate = 0;
-    fatDate |= ((localTime->tm_year - 80) << 9) & 0b1111111000000000;
-    fatDate |= ((localTime->tm_mon + 1) << 5) & 0b0000000111100000;
-    fatDate |= (localTime->tm_mday) & 0b0000000000011111;
-
-    WORD fatTime = 0;
-    fatTime |= (localTime->tm_hour << 11) & 0b1111100000000000;
-    fatTime |= (localTime->tm_min << 5) & 0b0000011111100000;
-    fatTime |= (localTime->tm_sec / 2) & 0b0000000000011111;
-
-    return {fatDate, fatTime};
-}
+time_t fatTimeToUnixSeconds(WORD fatDate, WORD fatTime);
+std::pair<WORD, WORD> unixSecondsToFatTime(time_t time);
 
 #endif
