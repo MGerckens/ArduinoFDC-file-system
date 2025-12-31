@@ -1,8 +1,10 @@
 #include "SerialInterface.hpp"
+#include "Helpers.hpp"
 #include "SerialWrapper.hpp"
 
 #include <chrono>
 #include <cstddef>
+#include <ctime>
 #include <format>
 #include <memory>
 #include <string>
@@ -264,7 +266,9 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void *buff) {
     }
     }
 }
-}
 
-// todo
-// DWORD get_fattime(void) {}
+DWORD get_fattime(void) {
+    auto [date, time] = unixSecondsToFatTime(std::time(nullptr));
+    return (date << 16) + time;
+}
+}

@@ -4,12 +4,9 @@
 #include "elm-fatfs/ff.h"
 #include <cerrno>
 #include <ctime>
-#include <fcntl.h>
+#include <fcntl.h> // for open modes
 #include <iostream>
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <variant>
+#include <utility>
 
 constexpr uint8_t unixFlagsToFatFlags(int flags) {
     uint8_t result = 0;
@@ -37,7 +34,7 @@ constexpr uint8_t unixFlagsToFatFlags(int flags) {
     return result;
 }
 
-int fresultToErrno(FRESULT result) {
+constexpr int fresultToErrno(FRESULT result) {
     switch (result) {
     case FR_OK:
         return 0;
@@ -93,10 +90,10 @@ int fresultToErrno(FRESULT result) {
     }
 }
 
-time_t fatTimeToSeconds(uint16_t fatDate, uint16_t fatTime) {
+inline time_t fatTimeToUnixSeconds(WORD fatDate, WORD fatTime) {
     std::tm fileTime;
     // years since 1980 -> years since 1900
-    fileTime.tm_year = ((fatDate & 0b1111110000000000) >> 9) + 80;
+    fileTime.tm_year = ((fatDate & 0b1111111000000000) >> 9) + 80;
     // 1-12 -> 0-11
     fileTime.tm_mon = ((fatDate & 0b0000000111100000) >> 5) - 1;
     fileTime.tm_mday = (fatDate & 0b0000000000011111);
@@ -106,6 +103,22 @@ time_t fatTimeToSeconds(uint16_t fatDate, uint16_t fatTime) {
     fileTime.tm_sec = (fatTime & 0b0000000000011111) * 2;
     fileTime.tm_isdst = -1;
     return std::mktime(&fileTime);
+}
+
+inline std::pair<WORD, WORD> unixSecondsToFatTime(time_t time) {
+    std::tm *localTime = std::localtime(&time);
+
+    WORD fatDate = 0;
+    fatDate |= ((localTime->tm_year - 80) << 9) & 0b1111111000000000;
+    fatDate |= ((localTime->tm_mon + 1) << 5) & 0b0000000111100000;
+    fatDate |= (localTime->tm_mday) & 0b0000000000011111;
+
+    WORD fatTime = 0;
+    fatTime |= (localTime->tm_hour << 11) & 0b1111100000000000;
+    fatTime |= (localTime->tm_min << 5) & 0b0000011111100000;
+    fatTime |= (localTime->tm_sec / 2) & 0b0000000000011111;
+
+    return {fatDate, fatTime};
 }
 
 #endif

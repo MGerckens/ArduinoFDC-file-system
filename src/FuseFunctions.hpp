@@ -3,15 +3,14 @@
 
 #include "Helpers.hpp"
 #include "SerialInterface.hpp"
-#include <algorithm> // for min
-#include <array>
 #include <cerrno>
 #include <cmath> // for ceil
 #include <cstdint>
 #include <cstring> // for memcpy
-#include <filesystem>
 #include <iostream>
-#include <memory>
+#include <string>
+#include <tuple> // for tie
+#include <unordered_map>
 
 extern "C" {
 
@@ -128,10 +127,16 @@ int serial_getattr(const char *path, struct stat *statbuf) {
     statbuf->st_blksize = 512;
     // this might be inaccurate if the file is fragmented
     statbuf->st_blocks = std::ceil(statbuf->st_size / 512.0);
-    statbuf->st_mtim = timespec{fatTimeToSeconds(info.fdate, info.ftime), 0};
-    // can't get access time, use modification time
+
+    timespec tempTime;
+    tempTime.tv_sec = fatTimeToUnixSeconds(info.fdate, info.ftime);
+    tempTime.tv_nsec = 0;
+    statbuf->st_mtim = tempTime;
+    // FAT doesn't support access time
     statbuf->st_atim = statbuf->st_mtim;
-    statbuf->st_ctim = timespec{fatTimeToSeconds(info.crdate, info.crtime), 0};
+    // use create time for ctime
+    tempTime.tv_sec = fatTimeToUnixSeconds(info.crdate, info.crtime);
+    statbuf->st_ctim = tempTime;
 
     return 0;
 }
@@ -284,12 +289,16 @@ int serial_release(const char *path, struct fuse_file_info *fi) {
 }
 
 int serial_utimens(const char *path, const struct timespec tv[2]) {
-    std::cerr << "utimens\n";
-    return -ENOSYS;
+    FILINFO times;
+    times.crdate = 0;
+    times.crtime = 0;
+    // FAT doesn't support access time
+    std::tie(times.fdate, times.ftime) = unixSecondsToFatTime(tv[1].tv_sec);
+    return -fresultToErrno(f_utime(path, &times));
 }
 
 // destroy will be useful if I put userData in private_data instead of a global
-void serial_destroy(void *userdata) { std::cout << "destroy\n"; }
+void serial_destroy(void *userdata) {}
 
 int serial_flush(const char *path, struct fuse_file_info *fi) {
     std::cout << "flush\n";
