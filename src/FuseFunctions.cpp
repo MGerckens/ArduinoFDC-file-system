@@ -6,37 +6,35 @@
 #include <iostream>
 #include <tuple> // for tie
 
-FATFS FatFs;
-std::unordered_map<std::string, FIL> openFiles;
-std::unordered_map<std::string, DIR> openDirs;
+#define CONTEXT (reinterpret_cast<Context *>(fuse_get_context()->private_data))
 
 extern "C" {
-// definitely needed
+
 int serial_mkdir(const char *path, mode_t mode) {
     return -fresultToErrno(f_mkdir(path));
 }
 
 int serial_unlink(const char *path) {
-    auto fileIter = openFiles.find(std::string(path));
-    if (fileIter != openFiles.end()) {
+    auto fileIter = CONTEXT->openFiles.find(std::string(path));
+    if (fileIter != CONTEXT->openFiles.end()) {
         FRESULT rc = f_close(&fileIter->second);
         if (rc != 0) {
             return -fresultToErrno(rc);
         }
-        openFiles.erase(fileIter);
+        CONTEXT->openFiles.erase(fileIter);
     }
 
     return -fresultToErrno(f_unlink(path));
 }
 
 int serial_rmdir(const char *path) {
-    auto dirIter = openDirs.find(std::string(path));
-    if (dirIter != openDirs.end()) {
+    auto dirIter = CONTEXT->openDirs.find(std::string(path));
+    if (dirIter != CONTEXT->openDirs.end()) {
         FRESULT rc = f_closedir(&dirIter->second);
         if (rc != 0) {
             return -fresultToErrno(rc);
         }
-        openDirs.erase(dirIter);
+        CONTEXT->openDirs.erase(dirIter);
     }
 
     return -fresultToErrno(f_unlink(path));
@@ -44,8 +42,8 @@ int serial_rmdir(const char *path) {
 
 int serial_read(const char *path, char *buf, size_t size, off_t offset,
                 struct fuse_file_info *fi) {
-    auto fileIter = openFiles.find(std::string(path));
-    if (fileIter == openFiles.end()) {
+    auto fileIter = CONTEXT->openFiles.find(std::string(path));
+    if (fileIter == CONTEXT->openFiles.end()) {
         return -ENOENT;
     }
     UINT bytesRead = 0;
@@ -60,8 +58,8 @@ int serial_read(const char *path, char *buf, size_t size, off_t offset,
 
 int serial_write(const char *path, const char *buf, size_t size, off_t offset,
                  struct fuse_file_info *fi) {
-    auto fileIter = openFiles.find(std::string(path));
-    if (fileIter == openFiles.end()) {
+    auto fileIter = CONTEXT->openFiles.find(std::string(path));
+    if (fileIter == CONTEXT->openFiles.end()) {
         return -ENOENT;
     }
     UINT bytesWritten = 0;
@@ -135,7 +133,7 @@ int serial_fgetattr(const char *path, struct stat *stbuf,
 }
 
 int serial_rename(const char *path, const char *newpath) {
-    if (openFiles.contains(std::string(path))) {
+    if (CONTEXT->openFiles.contains(std::string(path))) {
         std::cerr << "cannot rename an open file\n";
         return -EINVAL;
     }
@@ -144,10 +142,10 @@ int serial_rename(const char *path, const char *newpath) {
 
 int serial_statfs(const char *path, struct statvfs *statv) {
     (void)path;
-    statv->f_bsize = 512 * FatFs.csize;
+    statv->f_bsize = 512 * CONTEXT->fatFs.csize;
     statv->f_frsize = statv->f_bsize;
-    statv->f_blocks = FatFs.n_fatent - 2;
-    statv->f_bfree = FatFs.free_clst;
+    statv->f_blocks = CONTEXT->fatFs.n_fatent - 2;
+    statv->f_bfree = CONTEXT->fatFs.free_clst;
     statv->f_bavail = statv->f_ffree;
 
     statv->f_files = 0; // FAT doesn't use inodes
@@ -165,8 +163,8 @@ int serial_statfs(const char *path, struct statvfs *statv) {
 
 int serial_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                    off_t offset, struct fuse_file_info *fi) {
-    auto dirIter = openDirs.find(std::string(path));
-    if (dirIter == openDirs.end()) {
+    auto dirIter = CONTEXT->openDirs.find(std::string(path));
+    if (dirIter == CONTEXT->openDirs.end()) {
         return -ENOENT;
     }
 
@@ -202,7 +200,8 @@ int serial_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 }
 
 void *serial_init(struct fuse_conn_info *conn) {
-    f_mount(&FatFs, "", 0);
+    Context *ctx = new Context;
+    f_mount(&ctx->fatFs, "", 0);
 
     conn->max_write = 0;
     conn->async_read = 0;
@@ -210,18 +209,18 @@ void *serial_init(struct fuse_conn_info *conn) {
     conn->max_background = 0;
     conn->want |= FUSE_CAP_BIG_WRITES;
 
-    return nullptr;
+    return ctx;
 }
 
 int serial_open(const char *path, struct fuse_file_info *fi) {
     fi->direct_io = 1;
     // for ??reasons??, opening a FIL and then adding it to the map causes it to
     // be corrupted inserting an empty FIL and then opening it works
-    openFiles.insert({std::string(path), FIL{}});
-    FRESULT rc = f_open(&openFiles.at(std::string(path)), path,
+    CONTEXT->openFiles.insert({std::string(path), FIL{}});
+    FRESULT rc = f_open(&(CONTEXT->openFiles.at(std::string(path))), path,
                         unixFlagsToFatFlags(fi->flags));
     if (rc) {
-        openFiles.erase(std::string(path));
+        CONTEXT->openFiles.erase(std::string(path));
     }
 
     return -fresultToErrno(rc);
@@ -232,8 +231,8 @@ int serial_access(const char *path, int mask) {
 }
 
 int serial_truncate(const char *path, off_t newsize) {
-    auto fileIter = openFiles.find(std::string(path));
-    if (fileIter == openFiles.end()) {
+    auto fileIter = CONTEXT->openFiles.find(std::string(path));
+    if (fileIter == CONTEXT->openFiles.end()) {
         return -ENOENT;
     }
     FRESULT rc = f_lseek(&fileIter->second, newsize);
@@ -252,10 +251,10 @@ int serial_ftruncate(const char *path, off_t newsize, struct fuse_file_info *) {
 }
 
 int serial_opendir(const char *path, struct fuse_file_info *fi) {
-    openDirs.insert({std::string(path), DIR{}});
-    FRESULT rc = f_opendir(&openDirs.at(std::string(path)), path);
+    CONTEXT->openDirs.insert({std::string(path), DIR{}});
+    FRESULT rc = f_opendir(&(CONTEXT->openDirs.at(std::string(path))), path);
     if (rc) {
-        openDirs.erase(std::string(path));
+        CONTEXT->openDirs.erase(std::string(path));
     }
 
     return -fresultToErrno(rc);
@@ -264,11 +263,11 @@ int serial_opendir(const char *path, struct fuse_file_info *fi) {
 int serial_release(const char *path, struct fuse_file_info *fi) {
     (void)fi;
     // close if not already closed
-    auto file = openFiles.find(std::string(path));
-    if (file != openFiles.end()) {
+    auto file = CONTEXT->openFiles.find(std::string(path));
+    if (file != CONTEXT->openFiles.end()) {
         FRESULT rc = f_close(&file->second);
         if (rc == 0) {
-            openFiles.erase(file);
+            CONTEXT->openFiles.erase(file);
         }
         return -fresultToErrno(rc);
     }
@@ -284,8 +283,9 @@ int serial_utimens(const char *path, const struct timespec tv[2]) {
     return -fresultToErrno(f_utime(path, &times));
 }
 
-// destroy will be useful if I put userData in private_data instead of a global
-void serial_destroy(void *userdata) {}
+void serial_destroy(void *userdata) {
+    delete reinterpret_cast<Context *>(userdata);
+}
 
 int serial_flush(const char *path, struct fuse_file_info *fi) {
     std::cout << "flush\n";
@@ -295,8 +295,8 @@ int serial_flush(const char *path, struct fuse_file_info *fi) {
 int serial_fsync(const char *path, int datasync, struct fuse_file_info *fi) {
     (void)datasync;
     (void)fi;
-    auto fileIter = openFiles.find(std::string(path));
-    if (fileIter == openFiles.end()) {
+    auto fileIter = CONTEXT->openFiles.find(std::string(path));
+    if (fileIter == CONTEXT->openFiles.end()) {
         return -ENOENT;
     }
     return -fresultToErrno(f_sync(&fileIter->second));
@@ -305,11 +305,11 @@ int serial_fsync(const char *path, int datasync, struct fuse_file_info *fi) {
 int serial_releasedir(const char *path, struct fuse_file_info *fi) {
     (void)fi;
     // close if not already closed
-    auto dirIter = openDirs.find(std::string(path));
-    if (dirIter != openDirs.end()) {
+    auto dirIter = CONTEXT->openDirs.find(std::string(path));
+    if (dirIter != CONTEXT->openDirs.end()) {
         FRESULT rc = f_closedir(&dirIter->second);
         if (rc == 0) {
-            openDirs.erase(dirIter);
+            CONTEXT->openDirs.erase(dirIter);
         }
         return -fresultToErrno(rc);
     }

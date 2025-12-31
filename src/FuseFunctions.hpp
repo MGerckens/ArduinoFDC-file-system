@@ -6,6 +6,12 @@
 #include <string>
 #include <unordered_map>
 
+struct Context {
+    FATFS fatFs;
+    std::unordered_map<std::string, FIL> openFiles;
+    std::unordered_map<std::string, DIR> openDirs;
+};
+
 extern "C" {
 
 #ifndef FUSE_USE_VERSION

@@ -17,8 +17,7 @@ include(GoogleTest)
 add_executable(FuseFunctionsTest
     FuseFunctionsTest.cpp
 )
-target_link_libraries(FuseFunctionsTest PUBLIC gtest_main FloppySerial)
-target_compile_definitions(FuseFunctionsTest PUBLIC "-D_FILE_OFFSET_BITS=64")
+target_link_libraries(FuseFunctionsTest PUBLIC gtest_main FuseLayer FloppySerial)
 gtest_discover_tests(FuseFunctionsTest)
 
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")

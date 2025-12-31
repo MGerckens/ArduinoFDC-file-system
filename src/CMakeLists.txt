@@ -11,8 +11,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(ceSerial)
 
 add_library(FloppySerial
-    FuseFunctions.cpp
-    FuseFunctions.hpp
     Helpers.cpp
     Helpers.hpp
     SerialInterface.cpp
@@ -26,6 +24,12 @@ add_library(FloppySerial
 )
 target_include_directories(FloppySerial SYSTEM PRIVATE ${FETCHCONTENT_BASE_DIR}/ceserial-src)
 target_include_directories(FloppySerial PUBLIC ".")
+
+add_library(FuseLayer
+    FuseFunctions.cpp
+    FuseFunctions.hpp
+)
+target_link_libraries(FuseLayer PUBLIC FloppySerial libfuse.a)
 target_compile_definitions(FloppySerial PUBLIC "-D_FILE_OFFSET_BITS=64")
 
 # set_target_properties(FatFS PROPERTIES LINKER_LANGUAGE CXX)
@@ -37,7 +41,7 @@ target_link_libraries(FatFSMain PUBLIC FloppySerial)
 add_executable(main
     main.cpp
 )
-target_link_libraries(main PUBLIC FloppySerial libfuse.a)
+target_link_libraries(main PUBLIC FuseLayer )
 
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
     target_compile_options(main PUBLIC "-fsanitize=undefined")
