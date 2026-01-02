@@ -10,7 +10,7 @@
 
 extern "C" {
 
-int serial_mkdir(const char *path, GENERIC_MODE_T mode) {
+int serial_mkdir(const char *path, GenericModeT mode) {
     return -fresultToErrno(f_mkdir(path));
 }
 
@@ -72,7 +72,7 @@ int serial_write(const char *path, const char *buf, size_t size,
     return rc ? -fresultToErrno(rc) : bytesWritten;
 }
 
-int serial_mknod(const char *path, GENERIC_MODE_T mode, GENERIC_DEV_T dev) {
+int serial_mknod(const char *path, GenericModeT mode, GenericDevT dev) {
     (void)dev; // don't allow creating special files
     if ((mode & S_IFMT) != S_IFREG) {
         std::cerr
@@ -88,7 +88,7 @@ int serial_mknod(const char *path, GENERIC_MODE_T mode, GENERIC_DEV_T dev) {
     return -fresultToErrno(rc);
 }
 
-int serial_getattr(const char *path, GENERIC_STAT *statbuf) {
+int serial_getattr(const char *path, GenericStat *statbuf) {
     FILINFO info;
     FRESULT rc = f_stat(path, &info);
     if (rc) {
@@ -113,7 +113,7 @@ int serial_getattr(const char *path, GENERIC_STAT *statbuf) {
     // this might be inaccurate if the file is fragmented
     statbuf->st_blocks = std::ceil(statbuf->st_size / 512.0);
 
-    fuse_timespec tempTime;
+    GenericTimespec tempTime;
     tempTime.tv_sec = fatTimeToUnixSeconds(info.fdate, info.ftime);
     tempTime.tv_nsec = 0;
     statbuf->st_mtim = tempTime;
@@ -126,7 +126,7 @@ int serial_getattr(const char *path, GENERIC_STAT *statbuf) {
     return 0;
 }
 
-int serial_fgetattr(const char *path, GENERIC_STAT *stbuf,
+int serial_fgetattr(const char *path, GenericStat *stbuf,
                     struct fuse_file_info *fi) {
     (void)fi;
     return serial_getattr(path, stbuf);
@@ -140,7 +140,7 @@ int serial_rename(const char *path, const char *newpath) {
     return -fresultToErrno(f_rename(path, newpath));
 }
 
-int serial_statfs(const char *path, GENERIC_STATVFS *statv) {
+int serial_statfs(const char *path, GenericStatvfs *statv) {
     (void)path;
     statv->f_bsize = 512 * CONTEXT->fatFs.csize;
     statv->f_frsize = statv->f_bsize;
@@ -279,7 +279,7 @@ int serial_release(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-int serial_utimens(const char *path, const GENERIC_TIMESPEC tv[2]) {
+int serial_utimens(const char *path, const GenericTimespec tv[2]) {
     FILINFO times;
     times.crdate = 0;
     times.crtime = 0;
@@ -379,11 +379,11 @@ int serial_readlink(const char *path, char *link, size_t size) {
     std::cerr << "readlink\n";
     return -ENOSYS;
 }
-int serial_chmod(const char *path, GENERIC_MODE_T mode) {
+int serial_chmod(const char *path, GenericModeT mode) {
     std::cerr << "chmod\n";
     return -ENOSYS;
 }
-int serial_chown(const char *path, GENERIC_UID_T uid, GENERIC_GID_T gid) {
+int serial_chown(const char *path, GenericUidT uid, GenericGidT gid) {
     std::cerr << "chown\n";
     return -ENOSYS;
 }

@@ -11,14 +11,14 @@ extern "C" {
 #include "fuse.h"
 }
 
-#define GENERIC_MODE_T mode_t
-#define GENERIC_DEV_T dev_t
-#define GENERIC_UID_T uid_t
-#define GENERIC_GID_T gid_t
-#define GENERIC_OFF_T off_t
-#define GENERIC_STAT stat
-#define GENERIC_STATVFS statvfs
-#define GENERIC_TIMESPEC timespec
+typedef mode_t GenericModeT;
+typedef dev_t GenericDevT;
+typedef uid_t GenericUidT;
+typedef gid_t GenericGidT;
+typedef off_t GENERIC_OFF_T;
+typedef struct stat GenericStat;
+typedef struct statvfs GenericStatvfs;
+typedef struct timespec GenericTimespec;
 #define ALL_PERMS (S_IRWXU | S_IRWXG | S_IRWXO)
 
 #else
@@ -28,17 +28,16 @@ extern "C" {
 #include "winfsp/winfsp.h"
 }
 
-#define GENERIC_MODE_T fuse_mode_t
-#define GENERIC_DEV_T fuse_dev_t
-#define GENERIC_UID_T fuse_uid_t
-#define GENERIC_GID_T fuse_gid_t
-#define GENERIC_OFF_T fuse_off_t
-#define GENERIC_STAT fuse_stat
-#define GENERIC_STATVFS fuse_statvfs
-#define GENERIC_TIMESPEC fuse_timespec
-#define USE_WINFSP_COMPAT
-
+typedef fuse_mode_t GenericModeT;
+typedef fuse_dev_t GenericDevT;
+typedef fuse_uid_t GenericUidT;
+typedef fuse_gid_t GenericGidT;
+typedef fuse_off_t GENERIC_OFF_T;
+typedef struct fuse_stat GenericStat;
+typedef struct fuse_statvfs GenericStatvfs;
+typedef struct fuse_timespec GenericTimespec;
 #define ALL_PERMS 0x777
+#define USE_WINFSP_COMPAT
 
 #endif
 

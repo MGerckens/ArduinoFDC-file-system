@@ -16,19 +16,19 @@ struct Context {
 extern "C" {
 
 // definitely needed
-int serial_mkdir(const char *path, GENERIC_MODE_T mode);
+int serial_mkdir(const char *path, GenericModeT mode);
 int serial_unlink(const char *path);
 int serial_rmdir(const char *path);
 int serial_read(const char *path, char *buf, size_t size, GENERIC_OFF_T offset,
                 struct fuse_file_info *fi);
 int serial_write(const char *path, const char *buf, size_t size,
                  GENERIC_OFF_T offset, struct fuse_file_info *fi);
-int serial_mknod(const char *path, GENERIC_MODE_T mode, dev_t dev);
-int serial_getattr(const char *path, GENERIC_STAT *statbuf);
-int serial_fgetattr(const char *path, GENERIC_STAT *stbuf,
+int serial_mknod(const char *path, GenericModeT mode, dev_t dev);
+int serial_getattr(const char *path, GenericStat *statbuf);
+int serial_fgetattr(const char *path, GenericStat *stbuf,
                     struct fuse_file_info *fi);
 int serial_rename(const char *path, const char *newpath);
-int serial_statfs(const char *path, GENERIC_STATVFS *statv);
+int serial_statfs(const char *path, GenericStatvfs *statv);
 int serial_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                    GENERIC_OFF_T offset, struct fuse_file_info *fi);
 void *serial_init(struct fuse_conn_info *conn);
@@ -39,7 +39,7 @@ int serial_ftruncate(const char *path, GENERIC_OFF_T newsize,
                      struct fuse_file_info *);
 int serial_opendir(const char *path, struct fuse_file_info *fi);
 int serial_release(const char *path, struct fuse_file_info *fi);
-int serial_utimens(const char *path, const GENERIC_TIMESPEC tv[2]);
+int serial_utimens(const char *path, const GenericTimespec tv[2]);
 void serial_destroy(void *userdata);
 int serial_flush(const char *path, struct fuse_file_info *fi);
 int serial_fsync(const char *path, int datasync, struct fuse_file_info *fi);
@@ -64,8 +64,8 @@ int serial_poll(const char *path, struct fuse_file_info *fi,
 int serial_symlink(const char *path, const char *link);
 int serial_link(const char *path, const char *newpath);
 int serial_readlink(const char *path, char *link, size_t size);
-int serial_chmod(const char *path, GENERIC_MODE_T mode);
-int serial_chown(const char *path, GENERIC_UID_T uid, GENERIC_GID_T gid);
+int serial_chmod(const char *path, GenericModeT mode);
+int serial_chown(const char *path, GenericUidT uid, GenericGidT gid);
 }
 
 #endif

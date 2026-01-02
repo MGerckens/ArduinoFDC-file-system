@@ -38,8 +38,9 @@ else() # Linux
         GIT_TAG "fuse-3.15.1"
     )
     FetchContent_MakeAvailable(libfuse)
-    add_library(FuseImpl ALIAS libfuse.a)
-    target_compile_definitions(FuseImpl PUBLIC "-D_FILE_OFFSET_BITS=64")
+    add_library(FuseImpl INTERFACE)
+    target_link_libraries(FuseImpl INTERFACE libfuse.a)
+    target_compile_definitions(FuseImpl INTERFACE "-D_FILE_OFFSET_BITS=64")
 endif()
 
 add_library(FloppySerial
