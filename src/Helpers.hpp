@@ -57,6 +57,11 @@ constexpr char nibbleToHex(uint8_t nibble) {
     return table[nibble];
 }
 
+// MSVC defines modes but not ACCMODE mask
+#ifndef O_ACCMODE
+#define O_ACCMODE (O_RDONLY | O_WRONLY | O_RDWR)
+#endif
+
 constexpr uint8_t unixFlagsToFatFlags(int flags) {
     uint8_t result = 0;
     if ((flags & O_ACCMODE) == O_RDONLY) {

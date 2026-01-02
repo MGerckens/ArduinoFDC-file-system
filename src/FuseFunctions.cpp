@@ -10,7 +10,7 @@
 
 extern "C" {
 
-int serial_mkdir(const char *path, mode_t mode) {
+int serial_mkdir(const char *path, GENERIC_MODE_T mode) {
     return -fresultToErrno(f_mkdir(path));
 }
 
@@ -40,7 +40,7 @@ int serial_rmdir(const char *path) {
     return -fresultToErrno(f_unlink(path));
 }
 
-int serial_read(const char *path, char *buf, size_t size, off_t offset,
+int serial_read(const char *path, char *buf, size_t size, GENERIC_OFF_T offset,
                 struct fuse_file_info *fi) {
     auto fileIter = CONTEXT->openFiles.find(std::string(path));
     if (fileIter == CONTEXT->openFiles.end()) {
@@ -56,8 +56,8 @@ int serial_read(const char *path, char *buf, size_t size, off_t offset,
     return rc ? -fresultToErrno(rc) : bytesRead;
 }
 
-int serial_write(const char *path, const char *buf, size_t size, off_t offset,
-                 struct fuse_file_info *fi) {
+int serial_write(const char *path, const char *buf, size_t size,
+                 GENERIC_OFF_T offset, struct fuse_file_info *fi) {
     auto fileIter = CONTEXT->openFiles.find(std::string(path));
     if (fileIter == CONTEXT->openFiles.end()) {
         return -ENOENT;
@@ -72,7 +72,7 @@ int serial_write(const char *path, const char *buf, size_t size, off_t offset,
     return rc ? -fresultToErrno(rc) : bytesWritten;
 }
 
-int serial_mknod(const char *path, mode_t mode, dev_t dev) {
+int serial_mknod(const char *path, GENERIC_MODE_T mode, GENERIC_DEV_T dev) {
     (void)dev; // don't allow creating special files
     if ((mode & S_IFMT) != S_IFREG) {
         std::cerr
@@ -88,7 +88,7 @@ int serial_mknod(const char *path, mode_t mode, dev_t dev) {
     return -fresultToErrno(rc);
 }
 
-int serial_getattr(const char *path, struct stat *statbuf) {
+int serial_getattr(const char *path, GENERIC_STAT *statbuf) {
     FILINFO info;
     FRESULT rc = f_stat(path, &info);
     if (rc) {
@@ -98,7 +98,7 @@ int serial_getattr(const char *path, struct stat *statbuf) {
     statbuf->st_dev = 0; // assigned by fuse
     statbuf->st_ino = 0; // assigned by fuse
     // give everyone all permissions
-    statbuf->st_mode = S_IRWXU | S_IRWXG | S_IRWXO;
+    statbuf->st_mode = ALL_PERMS;
     if (info.fattrib & AM_DIR) {
         statbuf->st_mode |= S_IFDIR;
     } else {
@@ -113,7 +113,7 @@ int serial_getattr(const char *path, struct stat *statbuf) {
     // this might be inaccurate if the file is fragmented
     statbuf->st_blocks = std::ceil(statbuf->st_size / 512.0);
 
-    timespec tempTime;
+    fuse_timespec tempTime;
     tempTime.tv_sec = fatTimeToUnixSeconds(info.fdate, info.ftime);
     tempTime.tv_nsec = 0;
     statbuf->st_mtim = tempTime;
@@ -126,7 +126,7 @@ int serial_getattr(const char *path, struct stat *statbuf) {
     return 0;
 }
 
-int serial_fgetattr(const char *path, struct stat *stbuf,
+int serial_fgetattr(const char *path, GENERIC_STAT *stbuf,
                     struct fuse_file_info *fi) {
     (void)fi;
     return serial_getattr(path, stbuf);
@@ -140,7 +140,7 @@ int serial_rename(const char *path, const char *newpath) {
     return -fresultToErrno(f_rename(path, newpath));
 }
 
-int serial_statfs(const char *path, struct statvfs *statv) {
+int serial_statfs(const char *path, GENERIC_STATVFS *statv) {
     (void)path;
     statv->f_bsize = 512 * CONTEXT->fatFs.csize;
     statv->f_frsize = statv->f_bsize;
@@ -152,17 +152,19 @@ int serial_statfs(const char *path, struct statvfs *statv) {
     statv->f_ffree = 0;
     statv->f_favail = 0;
 
+#ifndef USE_WINFSP_COMPAT
     statv->f_flag = (ST_SYNCHRONOUS | ST_NODEV);
     if (FF_FS_READONLY) {
         statv->f_flag |= ST_RDONLY;
     }
     statv->f_type = 0x65735546; // fuse_super_magic
+#endif
     statv->f_namemax = 99;
     return 0;
 }
 
 int serial_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-                   off_t offset, struct fuse_file_info *fi) {
+                   GENERIC_OFF_T offset, struct fuse_file_info *fi) {
     auto dirIter = CONTEXT->openDirs.find(std::string(path));
     if (dirIter == CONTEXT->openDirs.end()) {
         return -ENOENT;
@@ -206,7 +208,9 @@ void *serial_init(struct fuse_conn_info *conn) {
     conn->max_write = 0;
     conn->async_read = 0;
     conn->max_readahead = 0;
+#ifndef USE_WINFSP_COMPAT
     conn->max_background = 0;
+#endif
     conn->want |= FUSE_CAP_BIG_WRITES;
 
     return ctx;
@@ -230,7 +234,7 @@ int serial_access(const char *path, int mask) {
     return -fresultToErrno(f_stat(path, nullptr));
 }
 
-int serial_truncate(const char *path, off_t newsize) {
+int serial_truncate(const char *path, GENERIC_OFF_T newsize) {
     auto fileIter = CONTEXT->openFiles.find(std::string(path));
     if (fileIter == CONTEXT->openFiles.end()) {
         return -ENOENT;
@@ -246,7 +250,8 @@ int serial_truncate(const char *path, off_t newsize) {
     return -fresultToErrno(f_rewind(&fileIter->second));
 }
 
-int serial_ftruncate(const char *path, off_t newsize, struct fuse_file_info *) {
+int serial_ftruncate(const char *path, GENERIC_OFF_T newsize,
+                     struct fuse_file_info *) {
     return serial_truncate(path, newsize);
 }
 
@@ -274,7 +279,7 @@ int serial_release(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-int serial_utimens(const char *path, const struct timespec tv[2]) {
+int serial_utimens(const char *path, const GENERIC_TIMESPEC tv[2]) {
     FILINFO times;
     times.crdate = 0;
     times.crtime = 0;
@@ -344,12 +349,6 @@ int serial_removexattr(const char *path, const char *name) {
     return -ENOSYS;
 }
 
-int serial_lock(const char *path, struct fuse_file_info *fi, int cmd,
-                struct flock *locks) {
-    std::cerr << "lock\n";
-    return -ENOSYS;
-}
-
 int serial_bmap(const char *path, size_t blocksize, uint64_t *blockno) {
     std::cerr << "bmap\n";
     return -ENOSYS;
@@ -380,11 +379,11 @@ int serial_readlink(const char *path, char *link, size_t size) {
     std::cerr << "readlink\n";
     return -ENOSYS;
 }
-int serial_chmod(const char *path, mode_t mode) {
+int serial_chmod(const char *path, GENERIC_MODE_T mode) {
     std::cerr << "chmod\n";
     return -ENOSYS;
 }
-int serial_chown(const char *path, uid_t uid, gid_t gid) {
+int serial_chown(const char *path, GENERIC_UID_T uid, GENERIC_GID_T gid) {
     std::cerr << "chown\n";
     return -ENOSYS;
 }

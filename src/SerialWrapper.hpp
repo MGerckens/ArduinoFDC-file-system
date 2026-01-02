@@ -78,7 +78,7 @@ class SerialWrapper {
 
 #else
 
-#include "ceserial.hpp"
+#include "ceserial.h"
 
 #include <cassert>
 #include <string>

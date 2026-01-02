@@ -17,7 +17,7 @@ include(GoogleTest)
 add_executable(FuseFunctionsTest
     FuseFunctionsTest.cpp
 )
-target_link_libraries(FuseFunctionsTest PUBLIC gtest_main FuseLayer FloppySerial)
+target_link_libraries(FuseFunctionsTest PUBLIC gtest_main FloppySerial)
 gtest_discover_tests(FuseFunctionsTest)
 
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
