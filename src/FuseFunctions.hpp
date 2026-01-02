@@ -19,10 +19,10 @@ extern "C" {
 int serial_mkdir(const char *path, GenericModeT mode);
 int serial_unlink(const char *path);
 int serial_rmdir(const char *path);
-int serial_read(const char *path, char *buf, size_t size, GENERIC_OFF_T offset,
+int serial_read(const char *path, char *buf, size_t size, GenericOffT offset,
                 struct fuse_file_info *fi);
 int serial_write(const char *path, const char *buf, size_t size,
-                 GENERIC_OFF_T offset, struct fuse_file_info *fi);
+                 GenericOffT offset, struct fuse_file_info *fi);
 int serial_mknod(const char *path, GenericModeT mode, dev_t dev);
 int serial_getattr(const char *path, GenericStat *statbuf);
 int serial_fgetattr(const char *path, GenericStat *stbuf,
@@ -30,12 +30,12 @@ int serial_fgetattr(const char *path, GenericStat *stbuf,
 int serial_rename(const char *path, const char *newpath);
 int serial_statfs(const char *path, GenericStatvfs *statv);
 int serial_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-                   GENERIC_OFF_T offset, struct fuse_file_info *fi);
+                   GenericOffT offset, struct fuse_file_info *fi);
 void *serial_init(struct fuse_conn_info *conn);
 int serial_open(const char *path, struct fuse_file_info *fi);
 int serial_access(const char *path, int mask);
-int serial_truncate(const char *path, GENERIC_OFF_T newsize);
-int serial_ftruncate(const char *path, GENERIC_OFF_T newsize,
+int serial_truncate(const char *path, GenericOffT newsize);
+int serial_ftruncate(const char *path, GenericOffT newsize,
                      struct fuse_file_info *);
 int serial_opendir(const char *path, struct fuse_file_info *fi);
 int serial_release(const char *path, struct fuse_file_info *fi);

@@ -40,7 +40,7 @@ int serial_rmdir(const char *path) {
     return -fresultToErrno(f_unlink(path));
 }
 
-int serial_read(const char *path, char *buf, size_t size, GENERIC_OFF_T offset,
+int serial_read(const char *path, char *buf, size_t size, GenericOffT offset,
                 struct fuse_file_info *fi) {
     auto fileIter = CONTEXT->openFiles.find(std::string(path));
     if (fileIter == CONTEXT->openFiles.end()) {
@@ -57,7 +57,7 @@ int serial_read(const char *path, char *buf, size_t size, GENERIC_OFF_T offset,
 }
 
 int serial_write(const char *path, const char *buf, size_t size,
-                 GENERIC_OFF_T offset, struct fuse_file_info *fi) {
+                 GenericOffT offset, struct fuse_file_info *fi) {
     auto fileIter = CONTEXT->openFiles.find(std::string(path));
     if (fileIter == CONTEXT->openFiles.end()) {
         return -ENOENT;
@@ -164,7 +164,7 @@ int serial_statfs(const char *path, GenericStatvfs *statv) {
 }
 
 int serial_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-                   GENERIC_OFF_T offset, struct fuse_file_info *fi) {
+                   GenericOffT offset, struct fuse_file_info *fi) {
     auto dirIter = CONTEXT->openDirs.find(std::string(path));
     if (dirIter == CONTEXT->openDirs.end()) {
         return -ENOENT;
@@ -234,7 +234,7 @@ int serial_access(const char *path, int mask) {
     return -fresultToErrno(f_stat(path, nullptr));
 }
 
-int serial_truncate(const char *path, GENERIC_OFF_T newsize) {
+int serial_truncate(const char *path, GenericOffT newsize) {
     auto fileIter = CONTEXT->openFiles.find(std::string(path));
     if (fileIter == CONTEXT->openFiles.end()) {
         return -ENOENT;
@@ -250,7 +250,7 @@ int serial_truncate(const char *path, GENERIC_OFF_T newsize) {
     return -fresultToErrno(f_rewind(&fileIter->second));
 }
 
-int serial_ftruncate(const char *path, GENERIC_OFF_T newsize,
+int serial_ftruncate(const char *path, GenericOffT newsize,
                      struct fuse_file_info *) {
     return serial_truncate(path, newsize);
 }
