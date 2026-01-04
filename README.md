@@ -4,7 +4,7 @@
 
 1. Ensure FUSE is installed (it should be by default)
 2. `cmake . && cmake --build .`
-3. Run with `main /mount/path -s`
+3. Run with `main /mount/path -s -f`
 
 Developed/tested with:
 
@@ -18,11 +18,11 @@ Developed/tested with:
 2. Add WinFSP's `bin` folder to your path
 3. Set the `WINFSP_LIB_PATH` cache variable to the `winfsp-*.lib` corresponding to your platform
 4. `cmake . && cmake --build .`
-5. Run with `main /mount/path -s`
+5. Run with `main.exe mount/path -s -f -o gid=65792,uid=65792`
 
 Developed/tested with:
 
 - Windows 11
 - WinFSP 2.0
 - Visual Studio 2022 Community (MSVC version 19.38.33134)
-- CMake 3.31.0
+- CMake 3.27.0

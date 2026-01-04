@@ -36,7 +36,7 @@ typedef fuse_off_t GenericOffT;
 typedef struct fuse_stat GenericStat;
 typedef struct fuse_statvfs GenericStatvfs;
 typedef struct fuse_timespec GenericTimespec;
-#define ALL_PERMS 0x777
+#define ALL_PERMS 0777
 #define USE_WINFSP_COMPAT
 
 #endif

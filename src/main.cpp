@@ -1,4 +1,3 @@
-#define FUSE_USE_VERSION 26
 #include "FuseFunctions.hpp"
 
 static fuse_operations serialOps{};

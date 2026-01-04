@@ -4,6 +4,7 @@
 #include <cmath>   // for ceil
 #include <cstring> // for memcpy
 #include <iostream>
+#include <optional>
 #include <tuple> // for tie
 
 #define CONTEXT (reinterpret_cast<Context *>(fuse_get_context()->private_data))
@@ -74,11 +75,13 @@ int serial_write(const char *path, const char *buf, size_t size,
 
 int serial_mknod(const char *path, GenericModeT mode, GenericDevT dev) {
     (void)dev; // don't allow creating special files
+#ifndef USE_WINFSP_COMPAT
     if ((mode & S_IFMT) != S_IFREG) {
         std::cerr
             << "mknod: tried to create something other than a regular file\n";
         return -ENOSYS;
     }
+#endif
 
     FIL file;
     FRESULT rc = f_open(&file, path, FA_CREATE_NEW);
@@ -133,11 +136,34 @@ int serial_fgetattr(const char *path, GenericStat *stbuf,
 }
 
 int serial_rename(const char *path, const char *newpath) {
-    if (CONTEXT->openFiles.contains(std::string(path))) {
-        std::cerr << "cannot rename an open file\n";
-        return -EINVAL;
+    auto &filesMap = CONTEXT->openFiles;
+    auto &dirsMap = CONTEXT->openDirs;
+    std::optional<FIL> openFile;
+    std::optional<DIR> openDir;
+    if (const auto fileIter = filesMap.find(std::string(path));
+        fileIter != filesMap.end()) {
+        openFile = fileIter->second;
+        filesMap.erase(fileIter);
     }
-    return -fresultToErrno(f_rename(path, newpath));
+    if (const auto dirIter = dirsMap.find(std::string(path));
+        dirIter != dirsMap.end()) {
+        openDir = dirIter->second;
+        dirsMap.erase(dirIter);
+    }
+
+    FRESULT rc = f_rename(path, newpath);
+    if (rc) {
+        return -fresultToErrno(rc);
+    }
+
+    if (openFile) {
+        filesMap.insert({std::string(newpath), FIL{}});
+        filesMap.at(std::string(newpath)) = *openFile;
+    } else if (openFile) {
+        dirsMap.insert({std::string(newpath), DIR{}});
+        dirsMap.at(std::string(newpath)) = *openDir;
+    }
+    return 0;
 }
 
 int serial_statfs(const char *path, GenericStatvfs *statv) {
@@ -145,7 +171,9 @@ int serial_statfs(const char *path, GenericStatvfs *statv) {
     statv->f_bsize = 512 * CONTEXT->fatFs.csize;
     statv->f_frsize = statv->f_bsize;
     statv->f_blocks = CONTEXT->fatFs.n_fatent - 2;
-    statv->f_bfree = CONTEXT->fatFs.free_clst;
+    statv->f_bfree = (CONTEXT->fatFs.free_clst < statv->f_blocks)
+                         ? CONTEXT->fatFs.free_clst
+                         : statv->f_blocks;
     statv->f_bavail = statv->f_ffree;
 
     statv->f_files = 0; // FAT doesn't use inodes
@@ -203,7 +231,7 @@ int serial_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 void *serial_init(struct fuse_conn_info *conn) {
     Context *ctx = new Context;
-    f_mount(&ctx->fatFs, "", 0);
+    f_mount(&ctx->fatFs, "", 1);
 
     conn->max_write = 0;
     conn->async_read = 0;
