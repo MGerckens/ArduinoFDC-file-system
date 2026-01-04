@@ -171,9 +171,15 @@ int serial_statfs(const char *path, GenericStatvfs *statv) {
     statv->f_bsize = 512 * CONTEXT->fatFs.csize;
     statv->f_frsize = statv->f_bsize;
     statv->f_blocks = CONTEXT->fatFs.n_fatent - 2;
-    statv->f_bfree = (CONTEXT->fatFs.free_clst < statv->f_blocks)
-                         ? CONTEXT->fatFs.free_clst
-                         : statv->f_blocks;
+
+    FATFS *temp;
+    DWORD numFreeClusters = 0;
+    FRESULT rc = f_getfree("", &numFreeClusters, &temp);
+    if (rc) {
+        return -fresultToErrno(rc);
+    }
+
+    statv->f_bfree = numFreeClusters;
     statv->f_bavail = statv->f_ffree;
 
     statv->f_files = 0; // FAT doesn't use inodes
